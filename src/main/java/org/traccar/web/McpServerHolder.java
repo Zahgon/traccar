@@ -21,14 +21,11 @@ import io.modelcontextprotocol.json.jackson2.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpAsyncServer;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures;
-import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 import reactor.core.publisher.Mono;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 
 @Singleton
@@ -41,7 +38,7 @@ public class McpServerHolder implements AutoCloseable {
 
     private final McpApiInvoker apiInvoker;
 
-    private final HttpServletStreamableServerTransportProvider transport;
+    private final McpTransportProvider transport;
     private final McpAsyncServer server;
 
     @Inject
@@ -49,11 +46,7 @@ public class McpServerHolder implements AutoCloseable {
 
         this.apiInvoker = apiInvoker;
 
-        transport = HttpServletStreamableServerTransportProvider.builder()
-                .mcpEndpoint(PATH)
-                .jsonMapper(new JacksonMcpJsonMapper(objectMapper))
-                .contextExtractor(this::extractTransportContext)
-                .build();
+        transport = new McpTransportProvider(new JacksonMcpJsonMapper(objectMapper));
 
         var capabilities = McpSchema.ServerCapabilities.builder()
                 .tools(true)
@@ -68,19 +61,10 @@ public class McpServerHolder implements AutoCloseable {
                 .build();
     }
 
-    private McpTransportContext extractTransportContext(HttpServletRequest request) {
+    static McpTransportContext createTransportContext(long userId, String authorization) {
         var contextData = new HashMap<String, Object>();
-        Object userId = request.getAttribute(McpAuthFilter.ATTRIBUTE_USER_ID);
-        if (userId != null) {
-            contextData.put(McpAuthFilter.ATTRIBUTE_USER_ID, userId);
-        }
-        Object authorization = request.getAttribute(McpAuthFilter.ATTRIBUTE_AUTHORIZATION);
-        if (authorization != null) {
-            contextData.put(McpAuthFilter.ATTRIBUTE_AUTHORIZATION, authorization);
-        }
-        if (contextData.isEmpty()) {
-            return McpTransportContext.EMPTY;
-        }
+        contextData.put(McpService.ATTRIBUTE_USER_ID, userId);
+        contextData.put(McpService.ATTRIBUTE_AUTHORIZATION, authorization);
         return McpTransportContext.create(contextData);
     }
 
@@ -96,7 +80,7 @@ public class McpServerHolder implements AutoCloseable {
                 .callHandler((context, request) -> {
                     try {
                         String authorization =
-                                (String) context.transportContext().get(McpAuthFilter.ATTRIBUTE_AUTHORIZATION);
+                                (String) context.transportContext().get(McpService.ATTRIBUTE_AUTHORIZATION);
                         String body = apiInvoker.get(tool.path(), request.arguments(), authorization);
                         return Mono.just(McpSchema.CallToolResult.builder().addTextContent(body).build());
                     } catch (RuntimeException e) {
@@ -109,7 +93,7 @@ public class McpServerHolder implements AutoCloseable {
                 .build();
     }
 
-    public HttpServlet getServlet() {
+    McpTransportProvider getTransport() {
         return transport;
     }
 

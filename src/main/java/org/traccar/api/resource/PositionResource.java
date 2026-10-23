@@ -16,6 +16,9 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiException;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.model.PositionUtil;
@@ -32,18 +35,6 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.StreamingOutput;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
@@ -53,9 +44,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.xml.stream.XMLStreamException;
 
-@Path("positions")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class PositionResource extends BaseResource {
 
     @Inject
@@ -70,10 +58,9 @@ public class PositionResource extends BaseResource {
     @Inject
     private Config config;
 
-    @GET
     public Stream<Position> getJson(
-            @QueryParam("deviceId") long deviceId, @QueryParam("id") List<Long> positionIds,
-            @QueryParam("geofenceId") long geofenceId, @QueryParam("from") Date from, @QueryParam("to") Date to)
+            long deviceId, List<Long> positionIds,
+            long geofenceId, Date from, Date to)
             throws StorageException {
         if (!positionIds.isEmpty()) {
             permissionsService.checkRestriction(getUserId(), UserRestrictions::getDisableReports);
@@ -105,27 +92,24 @@ public class PositionResource extends BaseResource {
         }
     }
 
-    @Path("{id}")
-    @DELETE
-    public Response removeById(@PathParam("id") long positionId) throws StorageException {
+    public ApiReply removeById(long positionId) throws StorageException {
         permissionsService.checkRestriction(getUserId(), UserRestrictions::getReadonly);
 
         Request request = new Request(new Columns.All(), new Condition.Equals("id", positionId));
         Position position = storage.getObject(Position.class, request);
         if (position == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ApiReply.status(404);
         }
 
         permissionsService.checkPermission(Device.class, getUserId(), position.getDeviceId());
 
         storage.removeObject(Position.class, request);
-        return Response.status(Response.Status.NO_CONTENT).build();
+        return ApiReply.status(204);
     }
 
-    @DELETE
-    public Response remove(
-            @QueryParam("deviceId") long deviceId,
-            @QueryParam("from") Date from, @QueryParam("to") Date to) throws StorageException {
+    public ApiReply remove(
+            long deviceId,
+            Date from, Date to) throws StorageException {
         permissionsService.checkPermission(Device.class, getUserId(), deviceId);
         permissionsService.checkRestriction(getUserId(), UserRestrictions::getReadonly);
 
@@ -134,18 +118,16 @@ public class PositionResource extends BaseResource {
         conditions.add(new Condition.Between("fixTime", from, to));
         storage.removeObject(Position.class, new Request(Condition.merge(conditions)));
 
-        return Response.status(Response.Status.NO_CONTENT).build();
+        return ApiReply.status(204);
     }
 
-    @Path("{extension:kml|kmz}")
-    @GET
-    public Response getKml(
-            @PathParam("extension") String extension,
-            @QueryParam("deviceId") long deviceId, @QueryParam("geofenceId") long geofenceId,
-            @QueryParam("from") Date from, @QueryParam("to") Date to) throws StorageException {
+    public ApiReply getKml(
+            String extension,
+            long deviceId, long geofenceId,
+            Date from, Date to) throws StorageException {
         permissionsService.checkPermission(Device.class, getUserId(), deviceId);
         permissionsService.checkRestriction(getUserId(), UserRestrictions::getDisableReports);
-        StreamingOutput stream = output -> {
+        ApiReply.Body stream = output -> {
             try {
                 if (extension.equals("kmz")) {
                     try (ZipOutputStream zipStream = new ZipOutputStream(output)) {
@@ -157,52 +139,64 @@ public class PositionResource extends BaseResource {
                     kmlExportProvider.generate(output, deviceId, geofenceId, from, to);
                 }
             } catch (XMLStreamException | StorageException e) {
-                throw new WebApplicationException(e);
+                throw new ApiException(e);
             }
         };
         String mediaType = extension.equals("kmz")
                 ? "application/vnd.google-earth.kmz"
                 : "application/vnd.google-earth.kml+xml";
-        return Response.ok(stream, mediaType)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=positions." + extension).build();
+        return ApiReply.ok(stream, mediaType)
+                .header("Content-Disposition", "attachment; filename=positions." + extension);
     }
 
-    @Path("csv")
-    @GET
-    @Produces("text/csv")
-    public Response getCsv(
-            @QueryParam("deviceId") long deviceId, @QueryParam("geofenceId") long geofenceId,
-            @QueryParam("from") Date from, @QueryParam("to") Date to) throws StorageException {
+    public ApiReply getCsv(
+            long deviceId, long geofenceId,
+            Date from, Date to) throws StorageException {
         permissionsService.checkPermission(Device.class, getUserId(), deviceId);
         permissionsService.checkRestriction(getUserId(), UserRestrictions::getDisableReports);
-        StreamingOutput stream = output -> {
+        ApiReply.Body stream = output -> {
             try {
                 csvExportProvider.generate(output, getUserId(), deviceId, geofenceId, from, to);
             } catch (StorageException e) {
-                throw new WebApplicationException(e);
+                throw new ApiException(e);
             }
         };
-        return Response.ok(stream)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=positions.csv").build();
+        return ApiReply.ok(stream)
+                .header("Content-Disposition", "attachment; filename=positions.csv");
     }
 
-    @Path("gpx")
-    @GET
-    @Produces("application/gpx+xml")
-    public Response getGpx(
-            @QueryParam("deviceId") long deviceId, @QueryParam("geofenceId") long geofenceId,
-            @QueryParam("from") Date from, @QueryParam("to") Date to) throws StorageException {
+    public ApiReply getGpx(
+            long deviceId, long geofenceId,
+            Date from, Date to) throws StorageException {
         permissionsService.checkPermission(Device.class, getUserId(), deviceId);
         permissionsService.checkRestriction(getUserId(), UserRestrictions::getDisableReports);
-        StreamingOutput stream = output -> {
+        ApiReply.Body stream = output -> {
             try {
                 gpxExportProvider.generate(output, deviceId, geofenceId, from, to);
             } catch (XMLStreamException | StorageException e) {
-                throw new WebApplicationException(e);
+                throw new ApiException(e);
             }
         };
-        return Response.ok(stream)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=positions.gpx").build();
+        return ApiReply.ok(stream)
+                .header("Content-Disposition", "attachment; filename=positions.gpx");
+    }
+
+    public static void routes(ApiResource<PositionResource> routes) {
+        routes.get("", (resource, call) -> resource.getJson(
+                call.queryLong("deviceId"), call.queryLongList("id"), call.queryLong("geofenceId"),
+                call.queryDate("from"), call.queryDate("to")));
+        routes.delete("{id}", (resource, call) -> resource.removeById(call.pathLong("id")));
+        routes.delete("", (resource, call) -> resource.remove(
+                call.queryLong("deviceId"), call.queryDate("from"), call.queryDate("to")));
+        routes.get("{extension:kml|kmz}", (resource, call) -> resource.getKml(
+                call.path("extension"), call.queryLong("deviceId"), call.queryLong("geofenceId"),
+                call.queryDate("from"), call.queryDate("to")));
+        routes.get("csv", (resource, call) -> resource.getCsv(
+                call.queryLong("deviceId"), call.queryLong("geofenceId"),
+                call.queryDate("from"), call.queryDate("to"))).produces("text/csv");
+        routes.get("gpx", (resource, call) -> resource.getGpx(
+                call.queryLong("deviceId"), call.queryLong("geofenceId"),
+                call.queryDate("from"), call.queryDate("to"))).produces("application/gpx+xml");
     }
 
 }

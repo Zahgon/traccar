@@ -16,8 +16,6 @@
 package org.traccar.schedule;
 
 import com.google.inject.Injector;
-import com.google.inject.servlet.RequestScoper;
-import com.google.inject.servlet.ServletScopes;
 import net.fortuna.ical4j.model.Period;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +40,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -86,10 +83,7 @@ public class TaskReports extends SingleScheduleTask {
                 Set<Period<Instant>> finishedEvents = new HashSet<>(lastEvents);
                 finishedEvents.removeAll(currentEvents);
                 for (Period<Instant> period : finishedEvents) {
-                    RequestScoper scope = ServletScopes.scopeRequest(Map.of());
-                    try (RequestScoper.CloseableScope ignored = scope.open()) {
-                        executeReport(report, Date.from(period.getStart()), Date.from(period.getEnd()));
-                    }
+                    executeReport(report, Date.from(period.getStart()), Date.from(period.getEnd()));
                 }
             }
         } catch (Exception e) {

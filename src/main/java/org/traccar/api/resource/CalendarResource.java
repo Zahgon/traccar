@@ -17,21 +17,19 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.SimpleObjectResource;
+import org.traccar.api.http.ApiResource;
 import org.traccar.model.Calendar;
 
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 
-@Path("calendars")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class CalendarResource extends SimpleObjectResource<Calendar> {
 
     public CalendarResource() {
         super(Calendar.class, "name", List.of("name"));
+    }
+
+    public static void routes(ApiResource<CalendarResource> routes) {
+        listRoutes(routes);
     }
 
 }

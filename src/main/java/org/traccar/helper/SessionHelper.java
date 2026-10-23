@@ -17,9 +17,9 @@ package org.traccar.helper;
 
 import io.netty.handler.codec.http.HttpHeaderNames;
 import org.traccar.model.User;
+import org.traccar.web.WebRequest;
+import org.traccar.web.WebSession;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Date;
@@ -32,7 +32,7 @@ public final class SessionHelper {
 
     private SessionHelper() {}
 
-    public static void userLogin(LogAction actionLogger, HttpServletRequest request, User user, Date expiration) {
+    public static void userLogin(LogAction actionLogger, WebRequest request, User user, Date expiration) {
         request.getSession().invalidate();
         request.getSession().setAttribute(USER_ID_KEY, user.getId());
 
@@ -48,8 +48,8 @@ public final class SessionHelper {
         actionLogger.login(request, user.getId());
     }
 
-    public static boolean isSessionOriginValid(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
+    public static boolean isSessionOriginValid(WebRequest request) {
+        WebSession session = request.getSession(false);
         if (session == null) {
             return false;
         }

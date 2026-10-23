@@ -15,9 +15,10 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 import java.util.Locale;
 
 public class TomTomGeocoder extends JsonGeocoder {
@@ -30,7 +31,7 @@ public class TomTomGeocoder extends JsonGeocoder {
         return url;
     }
 
-    public TomTomGeocoder(Client client, String url, String key, int cacheSize, AddressFormat addressFormat) {
+    public TomTomGeocoder(HttpJsonClient client, String url, String key, int cacheSize, AddressFormat addressFormat) {
         super(client, formatUrl(url, key), cacheSize, addressFormat);
     }
 

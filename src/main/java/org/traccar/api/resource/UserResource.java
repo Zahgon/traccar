@@ -17,6 +17,8 @@ package org.traccar.api.resource;
 
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import org.traccar.api.BaseObjectResource;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.LogAction;
@@ -32,27 +34,11 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Order;
 import org.traccar.storage.query.Request;
 
-import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 
-@Path("users")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class UserResource extends BaseObjectResource<User> {
 
     @Inject
@@ -61,19 +47,15 @@ public class UserResource extends BaseObjectResource<User> {
     @Inject
     private LogAction actionLogger;
 
-    @Context
-    private HttpServletRequest request;
-
     public UserResource() {
         super(User.class);
     }
 
-    @GET
     public Stream<User> get(
-            @QueryParam("userId") long userId, @QueryParam("deviceId") long deviceId,
-            @QueryParam("excludeAttributes") boolean excludeAttributes,
-            @QueryParam("limit") int limit, @QueryParam("offset") int offset,
-            @QueryParam("keyword") String keyword) throws StorageException {
+            long userId, long deviceId,
+            boolean excludeAttributes,
+            int limit, int offset,
+            String keyword) throws StorageException {
         var conditions = new LinkedList<Condition>();
         if (userId > 0) {
             permissionsService.checkUser(getUserId(), userId);
@@ -95,9 +77,7 @@ public class UserResource extends BaseObjectResource<User> {
     }
 
     @Override
-    @PermitAll
-    @POST
-    public Response add(User entity) throws StorageException {
+    public ApiReply add(User entity) throws StorageException {
         User currentUser = getUserId() > 0 ? permissionsService.getUser(getUserId()) : null;
         if (currentUser == null || !currentUser.getAdministrator()) {
             permissionsService.checkUserUpdate(getUserId(), new User(), entity);
@@ -137,27 +117,31 @@ public class UserResource extends BaseObjectResource<User> {
             storage.addPermission(new Permission(User.class, getUserId(), ManagedUser.class, entity.getId()));
             actionLogger.link(request, getUserId(), User.class, getUserId(), ManagedUser.class, entity.getId());
         }
-        return Response.ok(entity).build();
+        return ApiReply.ok(entity);
     }
 
-    @Path("{id}")
-    @DELETE
-    public Response remove(@PathParam("id") long id) throws Exception {
-        Response response = super.remove(id);
+    public ApiReply remove(long id) throws Exception {
+        ApiReply response = super.remove(id);
         if (getUserId() == id) {
             request.getSession().removeAttribute(SessionHelper.USER_ID_KEY);
         }
         return response;
     }
 
-    @Path("totp")
-    @PermitAll
-    @POST
     public String generateTotpKey() throws StorageException {
         if (!permissionsService.getServer().getBoolean(Keys.WEB_TOTP_ENABLE.getKey())) {
             throw new SecurityException("One-time password is disabled");
         }
         return new GoogleAuthenticator().createCredentials().getKey();
+    }
+
+    public static void routes(ApiResource<UserResource> routes) {
+        objectRoutes(routes);
+        routes.get("", (resource, call) -> resource.get(
+                call.queryLong("userId"), call.queryLong("deviceId"), call.queryBoolean("excludeAttributes"),
+                call.queryInt("limit"), call.queryInt("offset"), call.query("keyword")));
+        routes.find("POST", "").permitAll();
+        routes.post("totp", (resource, call) -> resource.generateTotpKey()).permitAll();
     }
 
 }

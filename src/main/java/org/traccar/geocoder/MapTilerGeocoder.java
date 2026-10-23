@@ -15,13 +15,14 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 
 public class MapTilerGeocoder extends JsonGeocoder {
 
-    public MapTilerGeocoder(Client client, String key, int cacheSize, AddressFormat addressFormat) {
+    public MapTilerGeocoder(HttpJsonClient client, String key, int cacheSize, AddressFormat addressFormat) {
         super(client, "https://api.maptiler.com/geocoding/%2$f,%1$f.json?key=" + key, cacheSize, addressFormat);
     }
 

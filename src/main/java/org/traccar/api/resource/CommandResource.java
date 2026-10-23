@@ -22,6 +22,8 @@ import org.slf4j.LoggerFactory;
 import org.traccar.BaseProtocol;
 import org.traccar.ServerManager;
 import org.traccar.api.ExtendedObjectResource;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.command.CommandSender;
 import org.traccar.command.CommandSenderManager;
 import org.traccar.database.CommandsManager;
@@ -41,25 +43,12 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
 import jakarta.inject.Inject;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-@Path("commands")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class CommandResource extends ExtendedObjectResource<Command> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CommandResource.class);
@@ -76,9 +65,6 @@ public class CommandResource extends ExtendedObjectResource<Command> {
     @Inject
     private CommandSenderManager commandSenderManager;
 
-    @Context
-    private HttpServletRequest request;
-
     public CommandResource() {
         super(Command.class, "description", List.of("description"));
     }
@@ -93,9 +79,7 @@ public class CommandResource extends ExtendedObjectResource<Command> {
         }
     }
 
-    @GET
-    @Path("send")
-    public Collection<Command> get(@QueryParam("deviceId") long deviceId) throws StorageException {
+    public Collection<Command> get(long deviceId) throws StorageException {
         permissionsService.checkPermission(Device.class, getUserId(), deviceId);
         BaseProtocol protocol = getDeviceProtocol(deviceId);
 
@@ -117,9 +101,7 @@ public class CommandResource extends ExtendedObjectResource<Command> {
         }).toList();
     }
 
-    @POST
-    @Path("send")
-    public Response send(Command entity, @QueryParam("groupId") long groupId) throws Exception {
+    public ApiReply send(Command entity, long groupId) throws Exception {
         if (entity.getId() > 0) {
             permissionsService.checkPermission(baseClass, getUserId(), entity.getId());
             long deviceId = entity.getDeviceId();
@@ -143,25 +125,23 @@ public class CommandResource extends ExtendedObjectResource<Command> {
                 }
             }
             if (!queuedCommands.isEmpty()) {
-                return Response.accepted(queuedCommands).build();
+                return ApiReply.accepted(queuedCommands);
             }
         } else {
             permissionsService.checkPermission(Device.class, getUserId(), entity.getDeviceId());
             QueuedCommand queuedCommand = commandsManager.sendCommand(entity);
             if (queuedCommand != null) {
-                return Response.accepted(queuedCommand).build();
+                return ApiReply.accepted(queuedCommand);
             }
         }
 
         actionLogger.command(request, getUserId(), groupId, entity.getDeviceId(), entity.getType());
-        return Response.ok(entity).build();
+        return ApiReply.ok(entity);
     }
 
-    @GET
-    @Path("types")
     public Collection<Typed> get(
-            @QueryParam("deviceId") long deviceId,
-            @QueryParam("textChannel") boolean textChannel) throws StorageException {
+            long deviceId,
+            boolean textChannel) throws StorageException {
         if (deviceId != 0) {
             permissionsService.checkPermission(Device.class, getUserId(), deviceId);
 
@@ -196,6 +176,14 @@ public class CommandResource extends ExtendedObjectResource<Command> {
             }
             return result;
         }
+    }
+
+    public static void routes(ApiResource<CommandResource> routes) {
+        listRoutes(routes);
+        routes.get("send", (resource, call) -> resource.get(call.queryLong("deviceId")));
+        routes.post("send", (resource, call) -> resource.send(call.json(Command.class), call.queryLong("groupId")));
+        routes.get("types", (resource, call) -> resource.get(
+                call.queryLong("deviceId"), call.queryBoolean("textChannel")));
     }
 
 }

@@ -15,7 +15,11 @@
  */
 package org.traccar.api.resource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.database.StatisticsManager;
@@ -25,19 +29,11 @@ import org.traccar.storage.StorageException;
 import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Request;
 
-import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 
-@Path("health")
-@Produces(MediaType.TEXT_PLAIN)
-@Consumes(MediaType.TEXT_PLAIN)
 public class HealthResource extends BaseResource {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(HealthResource.class);
 
     @Inject
     private Config config;
@@ -51,15 +47,14 @@ public class HealthResource extends BaseResource {
     private static long messageLastTotal;
     private static long messageLastCheck;
 
-    @PermitAll
-    @GET
-    public Response health() {
+    public ApiReply health() {
         try {
             checkMessages();
             checkDatabase();
-            return Response.ok("OK").build();
-        } catch (Exception ignore) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR.getStatusCode()).build();
+            return ApiReply.ok("OK");
+        } catch (Exception e) {
+            LOGGER.warn("Health check failed", e);
+            return ApiReply.status(500);
         }
     }
 
@@ -82,6 +77,10 @@ public class HealthResource extends BaseResource {
 
     private void checkDatabase() throws StorageException {
         storage.getObject(Server.class, new Request(new Columns.All()));
+    }
+
+    public static void routes(ApiResource<HealthResource> routes) {
+        routes.get("", (resource, call) -> resource.health()).permitAll();
     }
 
 }

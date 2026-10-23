@@ -18,15 +18,11 @@ package org.traccar.api;
 import org.traccar.api.security.PermissionsService;
 import org.traccar.api.security.UserPrincipal;
 import org.traccar.storage.Storage;
+import org.traccar.web.WebRequest;
 
 import jakarta.inject.Inject;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.SecurityContext;
 
 public class BaseResource {
-
-    @Context
-    private SecurityContext securityContext;
 
     @Inject
     protected Storage storage;
@@ -34,8 +30,17 @@ public class BaseResource {
     @Inject
     protected PermissionsService permissionsService;
 
+    protected WebRequest request;
+
+    private UserPrincipal principal;
+
+    public void bind(WebRequest request, UserPrincipal principal) {
+        this.request = request;
+        this.principal = principal;
+    }
+
     protected UserPrincipal getUserPrincipal() {
-        return (UserPrincipal) securityContext.getUserPrincipal();
+        return principal;
     }
 
     protected long getUserId() {

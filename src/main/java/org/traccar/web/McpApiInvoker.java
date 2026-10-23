@@ -15,69 +15,69 @@
  */
 package org.traccar.web;
 
-import org.glassfish.jersey.internal.MapPropertiesDelegate;
-import org.glassfish.jersey.server.ApplicationHandler;
-import org.glassfish.jersey.server.ContainerRequest;
-import org.glassfish.jersey.server.ContainerResponse;
-import org.glassfish.jersey.server.ResourceConfig;
-import org.traccar.api.ApiResourceConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.traccar.config.Config;
+import org.traccar.config.Keys;
+import org.traccar.helper.http.HttpJsonClient;
+import org.traccar.helper.http.HttpReply;
+import org.traccar.helper.http.HttpTarget;
 
+import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.UriBuilder;
-import java.io.ByteArrayOutputStream;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
+/**
+ * Runs a read-only REST API call on behalf of an MCP tool by sending it to this server's own API port.
+ */
 @Singleton
 public class McpApiInvoker {
 
-    private volatile ApplicationHandler applicationHandler;
+    private final HttpJsonClient client;
+    private final String baseUrl;
 
-    private ApplicationHandler getApplicationHandler() {
-        ApplicationHandler result = applicationHandler;
-        if (result == null) {
-            synchronized (this) {
-                result = applicationHandler;
-                if (result == null) {
-                    ResourceConfig resourceConfig = ApiResourceConfig.create();
-                    result = new ApplicationHandler(resourceConfig);
-                    applicationHandler = result;
-                }
-            }
+    @Inject
+    public McpApiInvoker(Config config, ObjectMapper objectMapper) {
+        this.client = new HttpJsonClient(objectMapper, 0, 0);
+        this.baseUrl = "http://" + loopbackHost(config.getString(Keys.WEB_ADDRESS)) + ":"
+                + config.getInteger(Keys.WEB_PORT) + "/api";
+    }
+
+    private static String loopbackHost(String address) {
+        if (address == null) {
+            return "127.0.0.1";
         }
-        return result;
+        try {
+            InetAddress inetAddress = InetAddress.getByName(address);
+            if (inetAddress.isAnyLocalAddress()) {
+                return "127.0.0.1";
+            }
+            String host = inetAddress.getHostAddress();
+            return host.contains(":") ? "[" + host + "]" : host;
+        } catch (UnknownHostException e) {
+            return address;
+        }
     }
 
     public String get(String path, Map<String, Object> arguments, String authorization) {
-        URI baseUri = URI.create("http://mcp-loopback.invalid/api/");
-        UriBuilder uriBuilder = UriBuilder.fromUri(baseUri).path(path);
+        HttpTarget target = client.target(baseUrl).path(path);
         for (Map.Entry<String, Object> entry : arguments.entrySet()) {
-            List<?> values = entry.getValue() instanceof List<?> list ? list : List.of(entry.getValue());
-            uriBuilder.queryParam(entry.getKey(), values.toArray());
-        }
-        ContainerRequest containerRequest = new ContainerRequest(
-                baseUri, uriBuilder.build(), "GET", null, new MapPropertiesDelegate(), null);
-        containerRequest.header(HttpHeaders.AUTHORIZATION, authorization);
-        containerRequest.header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON);
-
-        ByteArrayOutputStream responseBody = new ByteArrayOutputStream();
-        try {
-            ContainerResponse response = getApplicationHandler().apply(containerRequest, responseBody).get();
-            if (response.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-                throw new RuntimeException(
-                        "Request failed with status " + response.getStatus() + ": "
-                                + responseBody.toString(StandardCharsets.UTF_8));
+            List<?> values = entry.getValue() instanceof List<?> list
+                    ? list : Collections.singletonList(entry.getValue());
+            if (values.contains(null)) {
+                throw new IllegalArgumentException("One or more of query value parameters are null.");
             }
-            return responseBody.toString(StandardCharsets.UTF_8);
-        } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
+            target = target.queryParam(entry.getKey(), values.toArray());
         }
+        HttpReply reply = target.request("application/json").header("Authorization", authorization).get();
+        String body = reply.readEntity(String.class);
+        if (!reply.isSuccessful()) {
+            throw new RuntimeException("Request failed with status " + reply.getStatus() + ": " + body);
+        }
+        return body;
     }
 
 }

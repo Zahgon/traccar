@@ -18,13 +18,13 @@ package org.traccar.geocoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traccar.database.StatisticsManager;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
 
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.InvocationCallback;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -34,14 +34,14 @@ public abstract class JsonGeocoder implements Geocoder {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonGeocoder.class);
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final String url;
     private final AddressFormat addressFormat;
     private StatisticsManager statisticsManager;
 
     private Map<Map.Entry<Double, Double>, String> cache;
 
-    public JsonGeocoder(Client client, String url, final int cacheSize, AddressFormat addressFormat) {
+    public JsonGeocoder(HttpJsonClient client, String url, final int cacheSize, AddressFormat addressFormat) {
         this.client = client;
         this.url = url;
         this.addressFormat = addressFormat;
@@ -135,7 +135,7 @@ public abstract class JsonGeocoder implements Geocoder {
         var request = client.target(String.format(url, latitude, longitude)).request();
 
         if (callback != null) {
-            request.async().get(new InvocationCallback<JsonObject>() {
+            request.async().get(new HttpCallback<JsonObject>() {
                 @Override
                 public void completed(JsonObject json) {
                     handleResponse(latitude, longitude, json, callback);

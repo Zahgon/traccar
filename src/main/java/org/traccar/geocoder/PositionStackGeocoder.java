@@ -15,9 +15,10 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 
 public class PositionStackGeocoder extends JsonGeocoder {
 
@@ -25,7 +26,7 @@ public class PositionStackGeocoder extends JsonGeocoder {
         return "http://api.positionstack.com/v1/reverse?access_key=" + key + "&query=%f,%f";
     }
 
-    public PositionStackGeocoder(Client client, String key, int cacheSize, AddressFormat addressFormat) {
+    public PositionStackGeocoder(HttpJsonClient client, String key, int cacheSize, AddressFormat addressFormat) {
         super(client, formatUrl(key), cacheSize, addressFormat);
     }
 

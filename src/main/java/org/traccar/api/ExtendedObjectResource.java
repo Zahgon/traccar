@@ -16,6 +16,7 @@
  */
 package org.traccar.api;
 
+import org.traccar.api.http.ApiResource;
 import org.traccar.model.BaseModel;
 import org.traccar.model.Device;
 import org.traccar.model.Group;
@@ -26,8 +27,6 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Order;
 import org.traccar.storage.query.Request;
 
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.QueryParam;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -43,13 +42,23 @@ public class ExtendedObjectResource<T extends BaseModel> extends BaseObjectResou
         this.searchColumns = searchColumns;
     }
 
-    @GET
+    public static <M extends BaseModel, R extends ExtendedObjectResource<M>> void listRoutes(
+            ApiResource<R> routes) {
+        routes.get("", (resource, call) -> resource.get(
+                call.queryBoolean("all"), call.queryLong("userId"),
+                call.queryLong("groupId"), call.queryLong("deviceId"),
+                call.queryBoolean("excludeAttributes"),
+                call.queryInt("limit"), call.queryInt("offset"),
+                call.query("keyword")));
+        objectRoutes(routes);
+    }
+
     public Stream<T> get(
-            @QueryParam("all") boolean all, @QueryParam("userId") long userId,
-            @QueryParam("groupId") long groupId, @QueryParam("deviceId") long deviceId,
-            @QueryParam("excludeAttributes") boolean excludeAttributes,
-            @QueryParam("limit") int limit, @QueryParam("offset") int offset,
-            @QueryParam("keyword") String keyword) throws StorageException {
+            boolean all, long userId,
+            long groupId, long deviceId,
+            boolean excludeAttributes,
+            int limit, int offset,
+            String keyword) throws StorageException {
 
         var conditions = new LinkedList<Condition>();
 

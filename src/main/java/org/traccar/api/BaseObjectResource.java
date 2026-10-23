@@ -16,6 +16,8 @@
  */
 package org.traccar.api;
 
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.api.security.ServiceAccountUser;
 import org.traccar.helper.LogAction;
 import org.traccar.model.BaseModel;
@@ -32,15 +34,6 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
 import jakarta.inject.Inject;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PUT;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.Response;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -55,30 +48,31 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
     @Inject
     private LogAction actionLogger;
 
-    @Context
-    private HttpServletRequest request;
-
     protected final Class<T> baseClass;
 
     public BaseObjectResource(Class<T> baseClass) {
         this.baseClass = baseClass;
     }
 
-    @Path("{id}")
-    @GET
-    public Response getSingle(@PathParam("id") long id) throws StorageException {
+    public static <M extends BaseModel, R extends BaseObjectResource<M>> void objectRoutes(ApiResource<R> routes) {
+        routes.get("{id}", (resource, call) -> resource.getSingle(call.pathLong("id")));
+        routes.post("", (resource, call) -> resource.add(call.json(resource.baseClass)));
+        routes.put("{id}", (resource, call) -> resource.update(call.json(resource.baseClass)));
+        routes.delete("{id}", (resource, call) -> resource.remove(call.pathLong("id")));
+    }
+
+    public ApiReply getSingle(long id) throws StorageException {
         permissionsService.checkPermission(baseClass, getUserId(), id);
         T entity = storage.getObject(baseClass, new Request(
                 new Columns.All(), new Condition.Equals("id", id)));
         if (entity != null) {
-            return Response.ok(entity).build();
+            return ApiReply.ok(entity);
         } else {
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return ApiReply.status(404);
         }
     }
 
-    @POST
-    public Response add(T entity) throws Exception {
+    public ApiReply add(T entity) throws Exception {
         permissionsService.checkEdit(getUserId(), entity, true, false);
 
         if (entity instanceof Group group) {
@@ -95,12 +89,10 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
             actionLogger.link(request, getUserId(), User.class, getUserId(), baseClass, entity.getId());
         }
 
-        return Response.ok(entity).build();
+        return ApiReply.ok(entity);
     }
 
-    @Path("{id}")
-    @PUT
-    public Response update(T entity) throws Exception {
+    public ApiReply update(T entity) throws Exception {
         permissionsService.checkPermission(baseClass, getUserId(), entity.getId());
 
         boolean skipReadonly = false;
@@ -131,7 +123,7 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
         cacheManager.invalidateObject(true, entity.getClass(), entity.getId(), ObjectOperation.UPDATE);
         actionLogger.edit(request, getUserId(), entity);
 
-        return Response.ok(entity).build();
+        return ApiReply.ok(entity);
     }
 
     void checkGroupHierarchy(Group group, boolean addition) throws StorageException {
@@ -154,9 +146,7 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
         }
     }
 
-    @Path("{id}")
-    @DELETE
-    public Response remove(@PathParam("id") long id) throws Exception {
+    public ApiReply remove(long id) throws Exception {
         permissionsService.checkPermission(baseClass, getUserId(), id);
         permissionsService.checkEdit(getUserId(), baseClass, false, false);
 
@@ -165,7 +155,7 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
 
         actionLogger.remove(request, getUserId(), baseClass, id);
 
-        return Response.noContent().build();
+        return ApiReply.noContent();
     }
 
 }

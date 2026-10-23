@@ -1,10 +1,10 @@
 package org.traccar.mapmatcher;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.traccar.helper.http.HttpJsonClient;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.ClientBuilder;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MapMatcherTest {
 
-    private final Client client = ClientBuilder.newClient();
+    private final HttpJsonClient client = new HttpJsonClient(new ObjectMapper(), 0, 0);
 
     @Disabled
     @Test

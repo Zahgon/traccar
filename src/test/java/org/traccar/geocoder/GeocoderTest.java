@@ -1,10 +1,10 @@
 package org.traccar.geocoder;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.traccar.helper.http.HttpJsonClient;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.ClientBuilder;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,7 +15,7 @@ public class GeocoderTest {
         Locale.setDefault(Locale.US);
     }
 
-    private final Client client = ClientBuilder.newClient();
+    private final HttpJsonClient client = new HttpJsonClient(new ObjectMapper(), 0, 0);
 
     @Disabled
     @Test

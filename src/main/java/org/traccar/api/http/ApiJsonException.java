@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 - 2025 Anton Tananaev (anton@traccar.org)
+ * Copyright 2026 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,17 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.traccar.web;
+package org.traccar.api.http;
 
-import com.google.inject.servlet.ServletModule;
-import org.traccar.api.AsyncSocketServlet;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
-public class WebModule extends ServletModule {
+/**
+ * A request entity that is not valid JSON for the target type; answered as 400 with the parser message in plain text.
+ */
+public class ApiJsonException extends RuntimeException {
 
-    @Override
-    protected void configureServlets() {
-        filter("/*").through(OverrideTextFilter.class);
-        serve("/.well-known/*").with(WellKnownServlet.class);
-        serve("/api/socket").with(AsyncSocketServlet.class);
+    public ApiJsonException(JsonProcessingException cause) {
+        super(cause.getMessage(), cause);
     }
+
 }

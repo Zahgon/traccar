@@ -17,10 +17,11 @@
 package org.traccar.notificators;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.glassfish.jersey.client.ClientProperties;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.WebHelper;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.Event;
 import org.traccar.model.Position;
 import org.traccar.model.User;
@@ -28,18 +29,14 @@ import org.traccar.notification.NotificationFormatter;
 import org.traccar.notification.NotificationMessage;
 
 import jakarta.inject.Inject;
-import jakarta.inject.Provider;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.ClientBuilder;
-import jakarta.ws.rs.client.Entity;
 import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 
 @Singleton
 public class NotificatorTelegram extends Notificator {
 
-    private final Client client;
+    private final HttpJsonClient client;
 
     private final String urlSendText;
     private final String urlSendLocation;
@@ -68,7 +65,7 @@ public class NotificatorTelegram extends Notificator {
 
     @Inject
     public NotificatorTelegram(Config config, NotificationFormatter notificationFormatter,
-            Client client, Provider<ClientBuilder> clientBuilderProvider) {
+            HttpJsonClient client) {
         super(notificationFormatter);
 
         String baseUrl = config.getString(Keys.NOTIFICATOR_TELEGRAM_BASE_URL);
@@ -85,17 +82,17 @@ public class NotificatorTelegram extends Notificator {
 
         String proxyUrl = config.getString(Keys.NOTIFICATOR_TELEGRAM_PROXY_URL);
         if (proxyUrl != null) {
-            ClientBuilder clientBuilder = clientBuilderProvider.get()
-                    .property(ClientProperties.PROXY_URI, proxyUrl);
+            String username = null;
+            String password = null;
             String userInfo = URI.create(proxyUrl).getUserInfo();
             if (userInfo != null) {
                 String[] credentials = userInfo.split(":", 2);
-                clientBuilder.property(ClientProperties.PROXY_USERNAME, credentials[0]);
+                username = credentials[0];
                 if (credentials.length > 1) {
-                    clientBuilder.property(ClientProperties.PROXY_PASSWORD, credentials[1]);
+                    password = credentials[1];
                 }
             }
-            this.client = clientBuilder.build();
+            this.client = client.withProxy(proxyUrl, username, password);
         } else {
             this.client = client;
         }
@@ -126,11 +123,11 @@ public class NotificatorTelegram extends Notificator {
                 ? user.getBoolean(Keys.NOTIFICATOR_TELEGRAM_SEND_LOCATION.getKey())
                 : sendLocation;
 
-        return WebHelper.post(client.target(urlSendText).request(), Entity.json(message), response -> {})
+        return WebHelper.post(client.target(urlSendText).request(), HttpBody.json(message), response -> {})
                 .thenCompose(v -> {
                     if (sendUserLocation && position != null) {
                         return WebHelper.post(client.target(urlSendLocation).request(),
-                                Entity.json(createLocationMessage(message.chatId, position)), response -> {});
+                                HttpBody.json(createLocationMessage(message.chatId, position)), response -> {});
                     }
                     return CompletableFuture.completedFuture(null);
                 });

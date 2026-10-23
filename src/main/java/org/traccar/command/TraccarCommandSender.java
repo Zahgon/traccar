@@ -20,13 +20,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.Command;
 import org.traccar.model.Device;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
@@ -38,7 +38,7 @@ public class TraccarCommandSender implements CommandSender {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TraccarCommandSender.class);
 
-    private final Client client;
+    private final HttpJsonClient client;
 
     private final String url;
     private final String key;
@@ -53,7 +53,7 @@ public class TraccarCommandSender implements CommandSender {
     }
 
     @Inject
-    public TraccarCommandSender(Config config, Client client) throws IOException {
+    public TraccarCommandSender(Config config, HttpJsonClient client) throws IOException {
         this.client = client;
         this.url = "https://www.traccar.org/push/";
         this.key = config.getString(Keys.NOTIFICATOR_TRACCAR_KEY);
@@ -87,7 +87,7 @@ public class TraccarCommandSender implements CommandSender {
 
         var request = client.target(url).request().header("Authorization", "key=" + key);
         try {
-            request.post(Entity.json(message));
+            request.post(HttpBody.json(message));
         } catch (Exception e) {
             LOGGER.warn("Command push error", e);
         }

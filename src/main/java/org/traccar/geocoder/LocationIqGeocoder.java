@@ -15,7 +15,7 @@
  */
 package org.traccar.geocoder;
 
-import jakarta.ws.rs.client.Client;
+import org.traccar.helper.http.HttpJsonClient;
 
 public class LocationIqGeocoder extends NominatimGeocoder {
 
@@ -23,7 +23,8 @@ public class LocationIqGeocoder extends NominatimGeocoder {
     private static final String DEFAULT_KEY = "pk.689d849289c8c63708068b2ff1f63b2d";
 
     public LocationIqGeocoder(
-            Client client, String url, String key, String language, int cacheSize, AddressFormat addressFormat) {
+            HttpJsonClient client, String url, String key, String language, int cacheSize,
+            AddressFormat addressFormat) {
         super(client, url != null ? url : DEFAULT_URL, key != null ? key : DEFAULT_KEY,
                 language, cacheSize, addressFormat);
     }

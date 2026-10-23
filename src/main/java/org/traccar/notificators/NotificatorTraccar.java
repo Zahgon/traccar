@@ -21,6 +21,8 @@ import org.slf4j.LoggerFactory;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.WebHelper;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.Event;
 import org.traccar.model.ObjectOperation;
 import org.traccar.model.Position;
@@ -36,8 +38,6 @@ import org.traccar.storage.query.Request;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -49,7 +49,7 @@ public class NotificatorTraccar extends Notificator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificatorTraccar.class);
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final Storage storage;
     private final CacheManager cacheManager;
 
@@ -78,7 +78,7 @@ public class NotificatorTraccar extends Notificator {
 
     @Inject
     public NotificatorTraccar(
-            Config config, NotificationFormatter notificationFormatter, Client client,
+            Config config, NotificationFormatter notificationFormatter, HttpJsonClient client,
             Storage storage, CacheManager cacheManager) {
         super(notificationFormatter);
         this.client = client;
@@ -110,7 +110,7 @@ public class NotificatorTraccar extends Notificator {
         message.priority = shortMessage.priority();
 
         var request = client.target(url).request().header("Authorization", "key=" + key);
-        return WebHelper.post(request, Entity.json(message), rawResponse -> {
+        return WebHelper.post(request, HttpBody.json(message), rawResponse -> {
             var json = rawResponse.readEntity(JsonObject.class);
             List<String> failedTokens = new LinkedList<>();
             var responses = json.getJsonArray("responses");

@@ -18,10 +18,16 @@ package org.traccar.api;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.eclipse.jetty.websocket.api.Callback;
-import org.eclipse.jetty.websocket.api.Session;
+import io.helidon.http.Headers;
+import io.helidon.http.HttpPrologue;
+import io.helidon.websocket.WsCloseCodes;
+import io.helidon.websocket.WsListener;
+import io.helidon.websocket.WsSession;
+import io.helidon.websocket.WsUpgradeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.traccar.api.security.LoginService;
+import org.traccar.helper.SessionHelper;
 import org.traccar.helper.model.PositionUtil;
 import org.traccar.model.Device;
 import org.traccar.model.Event;
@@ -30,14 +36,24 @@ import org.traccar.model.Position;
 import org.traccar.session.ConnectionManager;
 import org.traccar.storage.Storage;
 import org.traccar.storage.StorageException;
+import org.traccar.web.HeadersWebRequest;
+import org.traccar.web.SessionStore;
+import org.traccar.web.WebSession;
 
-import java.nio.channels.ClosedChannelException;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
-public class AsyncSocket implements Session.Listener.AutoDemanding, ConnectionManager.UpdateListener {
+/**
+ * The /api/socket push channel of one client: the user's latest positions on open, then every device, position,
+ * event and (on request) log update the connection manager reports for that user.
+ */
+public class AsyncSocket implements WsListener, ConnectionManager.UpdateListener {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AsyncSocket.class);
 
@@ -49,42 +65,76 @@ public class AsyncSocket implements Session.Listener.AutoDemanding, ConnectionMa
     private final ObjectMapper objectMapper;
     private final ConnectionManager connectionManager;
     private final Storage storage;
-    private final long userId;
+    private final LoginService loginService;
+    private final SessionStore sessionStore;
+    private final long idleTimeout;
+    private final Set<AsyncSocket> openSockets;
 
-    private boolean includeLogs;
-    private Session session;
+    private Long userId;
+    private volatile boolean includeLogs;
+    private volatile WsSession session;
+    private volatile long lastActivity;
 
-    public AsyncSocket(ObjectMapper objectMapper, ConnectionManager connectionManager, Storage storage, long userId) {
+    public AsyncSocket(
+            ObjectMapper objectMapper, ConnectionManager connectionManager, Storage storage,
+            LoginService loginService, SessionStore sessionStore, long idleTimeout, Set<AsyncSocket> openSockets) {
         this.objectMapper = objectMapper;
         this.connectionManager = connectionManager;
         this.storage = storage;
-        this.userId = userId;
+        this.loginService = loginService;
+        this.sessionStore = sessionStore;
+        this.idleTimeout = idleTimeout;
+        this.openSockets = openSockets;
     }
 
     @Override
-    public void onWebSocketOpen(Session session) {
+    public Optional<Headers> onHttpUpgrade(HttpPrologue prologue, Headers headers) throws WsUpgradeException {
+        HeadersWebRequest request = new HeadersWebRequest(headers, null, prologue.query().rawValue(), sessionStore);
+        List<String> tokens = prologue.query().all("token", List::of);
+        if (!tokens.isEmpty()) {
+            try {
+                userId = loginService.login(tokens.get(0)).getUser().getId();
+            } catch (StorageException | GeneralSecurityException | IOException e) {
+                throw new WsUpgradeException("Token login failed", e);
+            }
+        } else if (SessionHelper.isSessionOriginValid(request)) {
+            WebSession webSession = request.getSession(false);
+            userId = (Long) webSession.getAttribute(SessionHelper.USER_ID_KEY);
+        }
+        if (userId == null) {
+            throw new WsUpgradeException("Not authenticated");
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public void onOpen(WsSession session) {
         this.session = session;
+        lastActivity = System.currentTimeMillis();
+        openSockets.add(this);
         try {
             Map<String, Collection<?>> data = new HashMap<>();
             data.put(KEY_POSITIONS, PositionUtil.getLatestPositions(storage, userId));
             sendData(data);
             connectionManager.addListener(userId, this);
         } catch (StorageException e) {
-            throw new RuntimeException(e);
+            LOGGER.warn("Socket positions error", e);
+            session.close(WsCloseCodes.UNEXPECTED_CONDITION, "Storage error");
         }
     }
 
     @Override
-    public void onWebSocketClose(int statusCode, String reason, Callback callback) {
+    public void onClose(WsSession session, int status, String reason) {
         connectionManager.removeListener(userId, this);
-        session = null;
-        callback.succeed();
+        openSockets.remove(this);
+        this.session = null;
     }
 
     @Override
-    public void onWebSocketText(String message) {
+    public void onMessage(WsSession session, String text, boolean last) {
+        lastActivity = System.currentTimeMillis();
         try {
-            JsonNode json = objectMapper.readTree(message);
+            JsonNode json = objectMapper.readTree(text);
             if (json.hasNonNull("logs")) {
                 includeLogs = json.get("logs").asBoolean();
             }
@@ -94,9 +144,17 @@ public class AsyncSocket implements Session.Listener.AutoDemanding, ConnectionMa
     }
 
     @Override
-    public void onWebSocketError(Throwable cause) {
-        if (!(cause instanceof ClosedChannelException)) {
-            LOGGER.warn("WebSocket error", cause);
+    public void onError(WsSession session, Throwable cause) {
+        LOGGER.warn("WebSocket error", cause);
+    }
+
+    /**
+     * Closes the connection when nothing was sent or received for longer than the configured web.timeout.
+     */
+    void closeIfIdle(long now) {
+        WsSession current = session;
+        if (current != null && now - lastActivity > idleTimeout) {
+            current.close(WsCloseCodes.NORMAL_CLOSE, "Idle timeout");
         }
     }
 
@@ -128,12 +186,20 @@ public class AsyncSocket implements Session.Listener.AutoDemanding, ConnectionMa
     }
 
     private void sendData(Map<String, Collection<?>> data) {
-        if (session != null && session.isOpen()) {
+        WsSession current = session;
+        if (current != null) {
             try {
-                session.sendText(objectMapper.writeValueAsString(data), Callback.NOOP);
+                String text = objectMapper.writeValueAsString(data);
+                synchronized (this) {
+                    current.send(text, true);
+                }
+                lastActivity = System.currentTimeMillis();
             } catch (JsonProcessingException e) {
                 LOGGER.warn("Socket JSON formatting error", e);
+            } catch (RuntimeException e) {
+                LOGGER.warn("Socket send error", e);
             }
         }
     }
+
 }

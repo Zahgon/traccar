@@ -18,19 +18,19 @@ package org.traccar.speedlimit;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.UnitsConverter;
+import org.traccar.helper.http.HttpAsync;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
 
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.AsyncInvoker;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.InvocationCallback;
 
 public class OverpassSpeedLimitProvider implements SpeedLimitProvider {
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final String url;
 
-    public OverpassSpeedLimitProvider(Config config, Client client, String url) {
+    public OverpassSpeedLimitProvider(Config config, HttpJsonClient client, String url) {
         int accuracy = config.getInteger(Keys.SPEED_LIMIT_ACCURACY);
         this.client = client;
         this.url = url + "?data=[out:json];way[highway][maxspeed](around:" + accuracy + ",%f,%f);out%%20tags;";
@@ -51,8 +51,8 @@ public class OverpassSpeedLimitProvider implements SpeedLimitProvider {
     @Override
     public void getSpeedLimit(double latitude, double longitude, SpeedLimitProviderCallback callback) {
         String formattedUrl = String.format(url, latitude, longitude);
-        AsyncInvoker invoker = client.target(formattedUrl).request().async();
-        invoker.get(new InvocationCallback<JsonObject>() {
+        HttpAsync invoker = client.target(formattedUrl).request().async();
+        invoker.get(new HttpCallback<JsonObject>() {
             @Override
             public void completed(JsonObject json) {
                 JsonArray elements = json.getJsonArray("elements");

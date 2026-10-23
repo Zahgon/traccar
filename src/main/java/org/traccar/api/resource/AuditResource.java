@@ -16,6 +16,7 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiResource;
 import org.traccar.model.Action;
 import org.traccar.model.User;
 import org.traccar.storage.StorageException;
@@ -24,25 +25,14 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Order;
 import org.traccar.storage.query.Request;
 
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.MediaType;
 import java.util.Date;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-@Path("audit")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class AuditResource extends BaseResource {
-
-    @GET
     public Stream<Action> get(
-            @QueryParam("from") Date from, @QueryParam("to") Date to) throws StorageException {
+            Date from, Date to) throws StorageException {
         permissionsService.checkAdmin(getUserId());
 
         Map<Long, String> userEmailMap;
@@ -60,6 +50,10 @@ public class AuditResource extends BaseResource {
                     action.setUserEmail(userEmailMap.get(action.getUserId()));
                     return action;
                 });
+    }
+
+    public static void routes(ApiResource<AuditResource> routes) {
+        routes.get("", (resource, call) -> resource.get(call.queryDate("from"), call.queryDate("to")));
     }
 
 }

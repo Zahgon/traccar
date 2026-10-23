@@ -16,6 +16,8 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.BaseObjectResource;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.database.MediaManager;
 import org.traccar.helper.LogAction;
 import org.traccar.model.Device;
@@ -32,20 +34,6 @@ import org.traccar.storage.query.Order;
 import org.traccar.storage.query.Request;
 
 import jakarta.inject.Inject;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.HeaderParam;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PUT;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -54,9 +42,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 
-@Path("devices")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class DeviceResource extends BaseObjectResource<Device> {
 
     private static final int DEFAULT_BUFFER_SIZE = 8192;
@@ -74,22 +59,18 @@ public class DeviceResource extends BaseObjectResource<Device> {
     @Inject
     private LogAction actionLogger;
 
-    @Context
-    private HttpServletRequest request;
-
     public DeviceResource() {
         super(Device.class);
     }
 
-    @GET
     public Stream<Device> get(
-            @QueryParam("all") boolean all, @QueryParam("userId") long userId,
-            @QueryParam("uniqueId") List<String> uniqueIds,
-            @QueryParam("id") List<Long> deviceIds,
-            @QueryParam("deviceId") long linkedFromDeviceId,
-            @QueryParam("excludeAttributes") boolean excludeAttributes,
-            @QueryParam("limit") int limit, @QueryParam("offset") int offset,
-            @QueryParam("keyword") String keyword) throws StorageException {
+            boolean all, long userId,
+            List<String> uniqueIds,
+            List<Long> deviceIds,
+            long linkedFromDeviceId,
+            boolean excludeAttributes,
+            int limit, int offset,
+            String keyword) throws StorageException {
 
         Columns columns = excludeAttributes ? new Columns.Exclude("attributes") : new Columns.All();
 
@@ -146,9 +127,7 @@ public class DeviceResource extends BaseObjectResource<Device> {
         }
     }
 
-    @Path("{id}/accumulators")
-    @PUT
-    public Response updateAccumulators(DeviceAccumulators entity) throws Exception {
+    public ApiReply updateAccumulators(DeviceAccumulators entity) throws Exception {
         permissionsService.checkPermission(Device.class, getUserId(), entity.getDeviceId());
         permissionsService.checkEdit(getUserId(), Device.class, false, false);
 
@@ -184,7 +163,7 @@ public class DeviceResource extends BaseObjectResource<Device> {
         }
 
         actionLogger.resetAccumulators(request, getUserId(), entity.getDeviceId());
-        return Response.noContent().build();
+        return ApiReply.noContent();
     }
 
     private String imageExtension(String type) {
@@ -197,12 +176,9 @@ public class DeviceResource extends BaseObjectResource<Device> {
         };
     }
 
-    @Path("{id}/image")
-    @POST
-    @Consumes("image/*")
-    public Response uploadImage(
-            @PathParam("id") long deviceId, File file,
-            @HeaderParam(HttpHeaders.CONTENT_TYPE) String type) throws StorageException, IOException {
+    public ApiReply uploadImage(
+            long deviceId, File file,
+            String type) throws StorageException, IOException {
 
         permissionsService.checkEdit(getUserId(), Device.class, false, false);
 
@@ -228,9 +204,22 @@ public class DeviceResource extends BaseObjectResource<Device> {
                     }
                 }
             }
-            return Response.ok(name + "." + extension).build();
+            return ApiReply.ok(name + "." + extension);
         }
-        return Response.status(Response.Status.NOT_FOUND).build();
+        return ApiReply.status(404);
+    }
+
+    public static void routes(ApiResource<DeviceResource> routes) {
+        objectRoutes(routes);
+        routes.get("", (resource, call) -> resource.get(
+                call.queryBoolean("all"), call.queryLong("userId"),
+                call.queryList("uniqueId"), call.queryLongList("id"),
+                call.queryLong("deviceId"), call.queryBoolean("excludeAttributes"),
+                call.queryInt("limit"), call.queryInt("offset"), call.query("keyword")));
+        routes.put("{id}/accumulators", (resource, call) -> resource.updateAccumulators(
+                call.json(DeviceAccumulators.class)));
+        routes.post("{id}/image", (resource, call) -> resource.uploadImage(
+                call.pathLong("id"), call.file(), call.getHeader("Content-Type"))).consumes("image/*");
     }
 
 }

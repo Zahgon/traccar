@@ -28,7 +28,6 @@ import com.nimbusds.oauth2.sdk.GeneralException;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timer;
 import org.apache.velocity.app.VelocityEngine;
-import org.glassfish.jersey.client.ClientProperties;
 import org.traccar.api.security.LoginService;
 import org.traccar.broadcast.BroadcastService;
 import org.traccar.broadcast.MulticastBroadcastService;
@@ -90,8 +89,8 @@ import org.traccar.handler.GeolocationHandler;
 import org.traccar.handler.MapMatcherHandler;
 import org.traccar.handler.SpeedLimitHandler;
 import org.traccar.helper.LogAction;
-import org.traccar.helper.ObjectMapperContextResolver;
 import org.traccar.helper.WebHelper;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.mail.LogMailManager;
 import org.traccar.mail.MailManager;
 import org.traccar.mail.SmtpMailManager;
@@ -110,8 +109,6 @@ import org.traccar.web.WebServer;
 
 import jakarta.annotation.Nullable;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.ClientBuilder;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.Properties;
@@ -158,24 +155,16 @@ public class MainModule extends AbstractModule {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
+    @Singleton
     @Provides
-    public static ClientBuilder provideClientBuilder(
-            Config config, ObjectMapperContextResolver objectMapperContextResolver) {
-        return ClientBuilder.newBuilder()
-                .register(objectMapperContextResolver)
-                .property(ClientProperties.CONNECT_TIMEOUT, config.getInteger(Keys.CLIENT_CONNECT_TIMEOUT))
-                .property(ClientProperties.READ_TIMEOUT, config.getInteger(Keys.CLIENT_READ_TIMEOUT));
+    public static HttpJsonClient provideClient(Config config, ObjectMapper objectMapper) {
+        return new HttpJsonClient(objectMapper,
+                config.getInteger(Keys.CLIENT_CONNECT_TIMEOUT), config.getInteger(Keys.CLIENT_READ_TIMEOUT));
     }
 
     @Singleton
     @Provides
-    public static Client provideClient(ClientBuilder clientBuilder) {
-        return clientBuilder.build();
-    }
-
-    @Singleton
-    @Provides
-    public static SmsManager provideSmsManager(Config config, Client client) {
+    public static SmsManager provideSmsManager(Config config, HttpJsonClient client) {
         if (config.hasKey(Keys.SMS_HTTP_URL)) {
             return new HttpSmsClient(config, client);
         } else if (config.hasKey(Keys.SMS_AWS_REGION)) {
@@ -226,7 +215,7 @@ public class MainModule extends AbstractModule {
 
     @Singleton
     @Provides
-    public static Geocoder provideGeocoder(Config config, Client client, StatisticsManager statisticsManager) {
+    public static Geocoder provideGeocoder(Config config, HttpJsonClient client, StatisticsManager statisticsManager) {
         if (config.getBoolean(Keys.GEOCODER_ENABLE)) {
             String type = config.getString(Keys.GEOCODER_TYPE);
             String url = config.getString(Keys.GEOCODER_URL);
@@ -270,7 +259,7 @@ public class MainModule extends AbstractModule {
 
     @Singleton
     @Provides
-    public static GeolocationProvider provideGeolocationProvider(Config config, Client client) {
+    public static GeolocationProvider provideGeolocationProvider(Config config, HttpJsonClient client) {
         if (config.getBoolean(Keys.GEOLOCATION_ENABLE)) {
             String type = config.getString(Keys.GEOLOCATION_TYPE, "google");
             String url = config.getString(Keys.GEOLOCATION_URL);
@@ -287,7 +276,7 @@ public class MainModule extends AbstractModule {
 
     @Singleton
     @Provides
-    public static SpeedLimitProvider provideSpeedLimitProvider(Config config, Client client) {
+    public static SpeedLimitProvider provideSpeedLimitProvider(Config config, HttpJsonClient client) {
         if (config.getBoolean(Keys.SPEED_LIMIT_ENABLE)) {
             String type = config.getString(Keys.SPEED_LIMIT_TYPE, "overpass");
             String url = config.getString(Keys.SPEED_LIMIT_URL);
@@ -322,7 +311,7 @@ public class MainModule extends AbstractModule {
 
     @Singleton
     @Provides
-    public static MapMatcher provideMapMatcher(Config config, Client client) {
+    public static MapMatcher provideMapMatcher(Config config, HttpJsonClient client) {
         if (config.getBoolean(Keys.MAP_MATCHER_ENABLE)) {
             String type = config.getString(Keys.MAP_MATCHER_TYPE);
             String url = config.getString(Keys.MAP_MATCHER_URL);
@@ -388,7 +377,8 @@ public class MainModule extends AbstractModule {
 
     @Singleton
     @Provides
-    public static EventForwarder provideEventForwarder(Config config, Client client, ObjectMapper objectMapper) {
+    public static EventForwarder provideEventForwarder(
+            Config config, HttpJsonClient client, ObjectMapper objectMapper) {
         if (config.hasKey(Keys.EVENT_FORWARD_URL)) {
             String forwardType = config.getString(Keys.EVENT_FORWARD_TYPE);
             return switch (forwardType) {
@@ -404,7 +394,7 @@ public class MainModule extends AbstractModule {
     @Singleton
     @Provides
     public static PositionForwarder providePositionForwarder(
-            Config config, Client client, ExecutorService executorService,
+            Config config, HttpJsonClient client, ExecutorService executorService,
             ObjectMapper objectMapper, CacheManager cacheManager) {
         if (config.hasKey(Keys.FORWARD_URL)) {
             return switch (config.getString(Keys.FORWARD_TYPE)) {

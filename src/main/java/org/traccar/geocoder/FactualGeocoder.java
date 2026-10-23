@@ -16,8 +16,9 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 
 public class FactualGeocoder extends JsonGeocoder {
 
@@ -29,7 +30,7 @@ public class FactualGeocoder extends JsonGeocoder {
         return url;
     }
 
-    public FactualGeocoder(Client client, String url, String key, int cacheSize, AddressFormat addressFormat) {
+    public FactualGeocoder(HttpJsonClient client, String url, String key, int cacheSize, AddressFormat addressFormat) {
         super(client, formatUrl(url, key), cacheSize, addressFormat);
     }
 

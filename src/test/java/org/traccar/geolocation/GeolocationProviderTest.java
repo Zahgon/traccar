@@ -1,20 +1,19 @@
 package org.traccar.geolocation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.traccar.BaseTest;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.CellTower;
 import org.traccar.model.Network;
-
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.ClientBuilder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 public class GeolocationProviderTest extends BaseTest {
 
-    private final Client client = ClientBuilder.newClient();
+    private final HttpJsonClient client = new HttpJsonClient(new ObjectMapper(), 0, 0);
 
     @Disabled
     @Test

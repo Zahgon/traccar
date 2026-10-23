@@ -17,6 +17,9 @@ package org.traccar.api.resource;
 
 import com.nimbusds.oauth2.sdk.ParseException;
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiException;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.api.security.CodeRequiredException;
 import org.traccar.api.security.LoginResult;
 import org.traccar.api.security.LoginService;
@@ -30,32 +33,14 @@ import org.traccar.storage.StorageException;
 import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
+import org.traccar.web.WebSession;
 
 import jakarta.annotation.Nullable;
-import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Date;
 
-@Path("session")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 public class SessionResource extends BaseResource {
 
     @Inject
@@ -71,19 +56,14 @@ public class SessionResource extends BaseResource {
     @Inject
     private LogAction actionLogger;
 
-    @Context
-    private HttpServletRequest request;
-
-    @PermitAll
-    @GET
-    public User get(@QueryParam("token") String token) throws StorageException, IOException, GeneralSecurityException {
+    public User get(String token) throws StorageException, IOException, GeneralSecurityException {
 
         if (token != null) {
             LoginResult loginResult;
             try {
                 loginResult = loginService.login(token);
             } catch (SecurityException | GeneralSecurityException e) {
-                throw new WebApplicationException(Response.status(Response.Status.UNAUTHORIZED).build());
+                throw new ApiException(401);
             }
             if (loginResult != null) {
                 User user = loginResult.getUser();
@@ -92,7 +72,7 @@ public class SessionResource extends BaseResource {
             }
         }
 
-        HttpSession session = request.getSession(false);
+        WebSession session = request.getSession(false);
         Long userId = session != null ? (Long) session.getAttribute(SessionHelper.USER_ID_KEY) : null;
         if (userId != null && SessionHelper.isSessionOriginValid(request)) {
             User user = permissionsService.getUser(userId);
@@ -101,12 +81,10 @@ public class SessionResource extends BaseResource {
             }
         }
 
-        throw new WebApplicationException(Response.status(Response.Status.NOT_FOUND).build());
+        throw new ApiException(404);
     }
 
-    @Path("{id}")
-    @GET
-    public User get(@PathParam("id") long userId) throws StorageException {
+    public User get(long userId) throws StorageException {
         permissionsService.checkUser(getUserId(), userId);
         User user = storage.getObject(User.class, new Request(
                 new Columns.All(), new Condition.Equals("id", userId)));
@@ -114,21 +92,15 @@ public class SessionResource extends BaseResource {
         return user;
     }
 
-    @PermitAll
-    @POST
     public User add(
-            @FormParam("email") String email,
-            @FormParam("password") String password,
-            @FormParam("code") Integer code) throws StorageException {
+            String email,
+            String password,
+            Integer code) throws StorageException {
         LoginResult loginResult;
         try {
             loginResult = loginService.login(email, password, code);
         } catch (CodeRequiredException e) {
-            Response response = Response
-                    .status(Response.Status.UNAUTHORIZED)
-                    .header("WWW-Authenticate", "TOTP")
-                    .build();
-            throw new WebApplicationException(response);
+            throw new ApiException(401).header("WWW-Authenticate", "TOTP");
         }
         if (loginResult != null) {
             User user = loginResult.getUser();
@@ -136,21 +108,18 @@ public class SessionResource extends BaseResource {
             return user;
         } else {
             actionLogger.failedLogin(request);
-            throw new WebApplicationException(Response.status(Response.Status.UNAUTHORIZED).build());
+            throw new ApiException(401);
         }
     }
 
-    @DELETE
-    public Response remove() {
+    public ApiReply remove() {
         actionLogger.logout(request, getUserId());
         request.getSession().removeAttribute(SessionHelper.USER_ID_KEY);
-        return Response.noContent().build();
+        return ApiReply.noContent();
     }
 
-    @Path("token")
-    @POST
     public String requestToken(
-            @FormParam("expiration") Date expiration) throws StorageException, GeneralSecurityException, IOException {
+            Date expiration) throws StorageException, GeneralSecurityException, IOException {
         Date currentExpiration = getUserPrincipal().getExpiration();
         if (currentExpiration != null && (expiration == null || currentExpiration.before(expiration))) {
             expiration = currentExpiration;
@@ -161,35 +130,39 @@ public class SessionResource extends BaseResource {
         return token;
     }
 
-    @Path("token/revoke")
-    @POST
-    public Response revokeToken(
-            @FormParam("token") String token) throws StorageException, GeneralSecurityException, IOException {
+    public ApiReply revokeToken(
+            String token) throws StorageException, GeneralSecurityException, IOException {
         TokenManager.TokenData data = tokenManager.decodeToken(token);
         RevokedToken revokedToken = new RevokedToken();
         revokedToken.setId(data.getId());
         storage.addObject(revokedToken, new Request(new Columns.Include("id")));
-        return Response.noContent().build();
+        return ApiReply.noContent();
     }
 
-    @PermitAll
-    @Path("openid/auth")
-    @GET
-    public Response openIdAuth() {
+    public ApiReply openIdAuth() {
         if (openIdProvider == null) {
             throw new UnsupportedOperationException("OpenID not enabled");
         }
-        return Response.seeOther(openIdProvider.createAuthUri()).build();
+        return ApiReply.seeOther(openIdProvider.createAuthUri());
     }
 
-    @PermitAll
-    @Path("openid/callback")
-    @GET
-    public Response requestToken() throws IOException, StorageException, ParseException, GeneralSecurityException {
+    public ApiReply requestToken() throws IOException, StorageException, ParseException, GeneralSecurityException {
         if (openIdProvider == null) {
             throw new UnsupportedOperationException("OpenID not enabled");
         }
-        return Response.seeOther(openIdProvider.handleCallback(request.getQueryString(), request)).build();
+        return ApiReply.seeOther(openIdProvider.handleCallback(request.getQueryString(), request));
+    }
+
+    public static void routes(ApiResource<SessionResource> routes) {
+        routes.get("", (resource, call) -> resource.get(call.query("token"))).permitAll();
+        routes.get("{id}", (resource, call) -> resource.get(call.pathLong("id")));
+        routes.post("", (resource, call) -> resource.add(
+                call.form("email"), call.form("password"), call.formInteger("code"))).permitAll();
+        routes.delete("", (resource, call) -> resource.remove());
+        routes.post("token", (resource, call) -> resource.requestToken(call.formDate("expiration")));
+        routes.post("token/revoke", (resource, call) -> resource.revokeToken(call.form("token")));
+        routes.get("openid/auth", (resource, call) -> resource.openIdAuth()).permitAll();
+        routes.get("openid/callback", (resource, call) -> resource.requestToken()).permitAll();
     }
 
 }

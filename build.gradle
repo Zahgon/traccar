@@ -30,7 +30,6 @@ dependencyUpdates {
             it.candidate.group == 'io.netty' && it.candidate.version ==~ /^5\..*/,
             it.candidate.version ==~ /(?i).*(alpha|beta|rc|m\d+|preview|snapshot|ea|dev).*/,
             it.candidate.group.startsWith('com.fasterxml.jackson.'),
-            it.candidate.group == 'org.glassfish.hk2',
             it.candidate.group == 'org.jxls',
         ].any { it }
     }
@@ -45,42 +44,19 @@ enforce {
 
 ext {
     guiceVersion = "7.0.0"
-    jettyVersion = "12.1.13"
-    jerseyVersion = "4.0.2"
+    helidonVersion = "4.5.5"
+    jacksonVersion = "2.21.2"
     nettyVersion = "4.2.18.Final"
     protobufVersion = "4.36.2"
     jxlsVersion = "2.14.0" // version 3 has breaking changes
     junixsocketVersion = "2.11.1"
 }
 
-def resolveTransitiveVersion = { String root, String group, String name ->
-    def dc = configurations.detachedConfiguration(dependencies.create(root))
-    dc.transitive = true
-    def artifact = dc.resolvedConfiguration.resolvedArtifacts.find {
-        it.moduleVersion.id.group == group && it.name == name
-    }
-    if (!artifact) throw new GradleException("Couldn't resolve $group:$name from $root")
-    artifact.moduleVersion.id.version
-}
-
-ext.jacksonVersion = resolveTransitiveVersion(
-        "org.glassfish.jersey.media:jersey-media-json-jackson:${jerseyVersion}",
-        "com.fasterxml.jackson.core",
-        "jackson-databind")
-
-ext.hk2Version = resolveTransitiveVersion(
-        "org.glassfish.jersey.inject:jersey-hk2:${jerseyVersion}",
-        "org.glassfish.hk2",
-        "hk2-locator")
-
 protobuf {
     protoc {
         artifact = "com.google.protobuf:protoc:$protobufVersion"
     }
 }
-
-// override jackson-core CVE (SNYK-JAVA-COMFASTERXMLJACKSONCORE-15907551); remove when Jersey bumps
-configurations.configureEach { resolutionStrategy.force "com.fasterxml.jackson.core:jackson-core:2.21.2" }
 
 dependencies {
     implementation "commons-codec:commons-codec:1.22.1"
@@ -103,22 +79,12 @@ dependencies {
     implementation "io.netty:netty-transport:$nettyVersion"
     implementation "org.slf4j:slf4j-jdk14:2.0.20"
     implementation "com.google.inject:guice:$guiceVersion"
-    implementation "com.google.inject.extensions:guice-servlet:$guiceVersion"
     implementation "org.glassfish:jakarta.json:2.0.1"
     implementation "com.sun.mail:jakarta.mail:2.0.2"
-    implementation "org.eclipse.jetty:jetty-server:$jettyVersion"
-    implementation "org.eclipse.jetty.compression:jetty-compression-server:$jettyVersion"
-    implementation "org.eclipse.jetty.compression:jetty-compression-gzip:$jettyVersion"
-    implementation "org.eclipse.jetty.ee10:jetty-ee10-servlet:$jettyVersion"
-    implementation "org.eclipse.jetty.ee10:jetty-ee10-servlets:$jettyVersion"
-    implementation "org.eclipse.jetty.ee10:jetty-ee10-proxy:$jettyVersion"
-    implementation "org.eclipse.jetty.ee10.websocket:jetty-ee10-websocket-jetty-server:$jettyVersion"
-    implementation "org.eclipse.jetty.ee10.websocket:jetty-ee10-websocket-jakarta-server:$jettyVersion"
-    implementation "org.glassfish.jersey.containers:jersey-container-servlet:$jerseyVersion"
-    implementation "org.glassfish.jersey.media:jersey-media-json-jackson:$jerseyVersion"
-    implementation "org.glassfish.jersey.inject:jersey-hk2:$jerseyVersion"
-    implementation "org.glassfish.hk2:guice-bridge:$hk2Version"
-    implementation "com.fasterxml.jackson.jaxrs:jackson-jaxrs-json-provider:$jacksonVersion"
+    implementation "io.helidon.webserver:helidon-webserver:$helidonVersion"
+    implementation "io.helidon.webserver:helidon-webserver-websocket:$helidonVersion"
+    implementation "jakarta.annotation:jakarta.annotation-api:3.0.0"
+    implementation "com.fasterxml.jackson.core:jackson-databind:$jacksonVersion"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jakarta-jsonp:$jacksonVersion"
     implementation "com.fasterxml.jackson.module:jackson-module-blackbird:$jacksonVersion"
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:$jacksonVersion"

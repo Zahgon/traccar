@@ -16,14 +16,15 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 import java.util.Locale;
 
 public class BingMapsGeocoder extends JsonGeocoder {
 
-    public BingMapsGeocoder(Client client, String url, String key, int cacheSize, AddressFormat addressFormat) {
+    public BingMapsGeocoder(HttpJsonClient client, String url, String key, int cacheSize, AddressFormat addressFormat) {
         super(client, url + "/Locations/%f,%f?key=" + key + "&include=ciso2", cacheSize, addressFormat);
     }
 

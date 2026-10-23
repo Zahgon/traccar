@@ -16,16 +16,15 @@
 package org.traccar.command;
 
 import org.traccar.config.Keys;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpJsonClient;
+import org.traccar.helper.http.HttpReply;
+import org.traccar.helper.http.HttpTarget;
 import org.traccar.model.Command;
 import org.traccar.model.Device;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.WebTarget;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
@@ -35,10 +34,10 @@ import java.util.regex.Pattern;
 @Singleton
 public class FindHubCommandSender implements CommandSender {
 
-    private final Client client;
+    private final HttpJsonClient client;
 
     @Inject
-    public FindHubCommandSender(Client client) throws IOException {
+    public FindHubCommandSender(HttpJsonClient client) throws IOException {
         this.client = client;
     }
 
@@ -61,7 +60,7 @@ public class FindHubCommandSender implements CommandSender {
         String commandType = Pattern.compile("(?<=[a-z0-9])(?=[A-Z])")
                 .matcher(command.getType()).replaceAll("-").toLowerCase(Locale.ROOT);
 
-        WebTarget target = client.target(url)
+        HttpTarget target = client.target(url)
                 .path("devices")
                 .path(device.getUniqueId())
                 .path(commandType);
@@ -71,10 +70,10 @@ public class FindHubCommandSender implements CommandSender {
             target = target.queryParam("interval", interval);
         }
 
-        try (Response response = target.request(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + key).post(null)) {
-            if (response.getStatusInfo().getFamily() != Response.Status.Family.SUCCESSFUL) {
-                throw new RuntimeException("HTTP code " + response.getStatusInfo().getStatusCode());
+        try (HttpReply response = target.request(HttpBody.JSON)
+                .header("Authorization", "Bearer " + key).post(null)) {
+            if (!response.isSuccessful()) {
+                throw new RuntimeException("HTTP code " + response.getStatus());
             }
         }
     }

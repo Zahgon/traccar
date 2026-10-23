@@ -19,6 +19,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.WebHelper;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.Event;
 import org.traccar.model.Position;
 import org.traccar.model.User;
@@ -27,14 +29,12 @@ import org.traccar.notification.NotificationMessage;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
 import java.util.concurrent.CompletableFuture;
 
 @Singleton
 public class NotificatorPushover extends Notificator {
 
-    private final Client client;
+    private final HttpJsonClient client;
 
     private final String url;
     private final String token;
@@ -54,7 +54,7 @@ public class NotificatorPushover extends Notificator {
     }
 
     @Inject
-    public NotificatorPushover(Config config, NotificationFormatter notificationFormatter, Client client) {
+    public NotificatorPushover(Config config, NotificationFormatter notificationFormatter, HttpJsonClient client) {
         super(notificationFormatter);
         this.client = client;
         url = "https://api.pushover.net/1/messages.json";
@@ -81,7 +81,7 @@ public class NotificatorPushover extends Notificator {
         message.title = shortMessage.subject();
         message.message = shortMessage.digest();
 
-        return WebHelper.post(client.target(url).request(), Entity.json(message), response -> {});
+        return WebHelper.post(client.target(url).request(), HttpBody.json(message), response -> {});
     }
 
 }

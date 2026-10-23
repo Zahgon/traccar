@@ -17,10 +17,10 @@
 package org.traccar.geocoder;
 
 import org.traccar.helper.CoordinateUtil;
+import org.traccar.helper.http.HttpJsonClient;
 
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 
 public class BaiduGeocoder extends JsonGeocoder {
 
@@ -36,7 +36,8 @@ public class BaiduGeocoder extends JsonGeocoder {
         return url;
     }
 
-    public BaiduGeocoder(Client client, String key, String language, int cacheSize, AddressFormat addressFormat) {
+    public BaiduGeocoder(HttpJsonClient client, String key, String language, int cacheSize,
+            AddressFormat addressFormat) {
         super(client, formatUrl(key, language), cacheSize, addressFormat);
     }
 

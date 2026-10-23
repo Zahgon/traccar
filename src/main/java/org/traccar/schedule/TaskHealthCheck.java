@@ -21,9 +21,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.http.HttpJsonClient;
 
 import jakarta.inject.Inject;
-import jakarta.ws.rs.client.Client;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -32,7 +32,7 @@ public class TaskHealthCheck implements ScheduleTask {
     private static final Logger LOGGER = LoggerFactory.getLogger(TaskHealthCheck.class);
 
     private final Config config;
-    private final Client client;
+    private final HttpJsonClient client;
 
     private final long gracePeriod = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1);
 
@@ -42,7 +42,7 @@ public class TaskHealthCheck implements ScheduleTask {
     private long period;
 
     @Inject
-    public TaskHealthCheck(Config config, Client client) {
+    public TaskHealthCheck(Config config, HttpJsonClient client) {
         this.config = config;
         this.client = client;
         if (!config.getBoolean(Keys.WEB_DISABLE_HEALTH_CHECK) && System.getenv("NOTIFY_SOCKET") != null) {

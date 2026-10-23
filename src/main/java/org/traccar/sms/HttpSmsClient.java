@@ -21,12 +21,11 @@ import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.DataConverter;
 import org.traccar.helper.WebHelper;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpCall;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.notification.MessageException;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.client.Invocation;
-import jakarta.ws.rs.core.MediaType;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -34,14 +33,14 @@ import java.util.concurrent.CompletableFuture;
 
 public class HttpSmsClient implements SmsManager {
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final String url;
     private final String authorizationHeader;
     private final String authorization;
     private final String template;
-    private final MediaType mediaType;
+    private final String mediaType;
 
-    public HttpSmsClient(Config config, Client client) {
+    public HttpSmsClient(Config config, HttpJsonClient client) {
         this.client = client;
         url = config.getString(Keys.SMS_HTTP_URL);
         authorizationHeader = config.getString(Keys.SMS_HTTP_AUTHORIZATION_HEADER);
@@ -59,19 +58,19 @@ public class HttpSmsClient implements SmsManager {
         }
         template = config.getString(Keys.SMS_HTTP_TEMPLATE).trim();
         if (template.charAt(0) == '<') {
-            mediaType = MediaType.APPLICATION_XML_TYPE;
+            mediaType = HttpBody.XML;
         } else if (template.charAt(0) == '{' || template.charAt(0) == '[') {
-            mediaType = MediaType.APPLICATION_JSON_TYPE;
+            mediaType = HttpBody.JSON;
         } else {
-            mediaType = MediaType.APPLICATION_FORM_URLENCODED_TYPE;
+            mediaType = HttpBody.FORM;
         }
     }
 
     private String prepareValue(String value) throws UnsupportedEncodingException {
-        if (mediaType == MediaType.APPLICATION_FORM_URLENCODED_TYPE) {
+        if (mediaType == HttpBody.FORM) {
             return URLEncoder.encode(value, StandardCharsets.UTF_8);
         }
-        if (mediaType == MediaType.APPLICATION_JSON_TYPE) {
+        if (mediaType == HttpBody.JSON) {
             return new String(JsonStringEncoder.getInstance().quoteAsString(value));
         }
         return value;
@@ -87,8 +86,8 @@ public class HttpSmsClient implements SmsManager {
         }
     }
 
-    private Invocation.Builder getRequestBuilder() {
-        Invocation.Builder builder = client.target(url).request();
+    private HttpCall getRequestBuilder() {
+        HttpCall builder = client.target(url).request();
         if (authorization != null) {
             builder = builder.header(authorizationHeader, authorization);
         }
@@ -97,8 +96,8 @@ public class HttpSmsClient implements SmsManager {
 
     @Override
     public CompletableFuture<Void> sendMessage(String phone, String message, boolean command) {
-        Entity<String> entity = Entity.entity(
-                preparePayload(phone, message), mediaType.withCharset(StandardCharsets.UTF_8.name()));
+        HttpBody entity = HttpBody.text(
+                preparePayload(phone, message), mediaType + ";charset=" + StandardCharsets.UTF_8.name());
         return WebHelper.post(getRequestBuilder(), entity, response -> {
             if (response.getStatus() / 100 != 2) {
                 throw new MessageException(response.readEntity(String.class));

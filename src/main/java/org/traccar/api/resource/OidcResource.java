@@ -17,28 +17,19 @@ package org.traccar.api.resource;
 
 import com.nimbusds.jose.JOSEException;
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiException;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.api.security.OidcSessionManager;
 import org.traccar.api.security.OidcSessionManager.AuthorizationCode;
 import org.traccar.api.signature.TokenManager;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.QueryParamBuilder;
 import org.traccar.model.User;
 import org.traccar.storage.StorageException;
 
-import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.HeaderParam;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.core.UriBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -51,9 +42,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Path("oidc")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 public class OidcResource extends BaseResource {
 
     private record ClientConfig(String secret, Set<URI> redirectUris) {}
@@ -67,50 +55,45 @@ public class OidcResource extends BaseResource {
     @Inject
     private OidcSessionManager sessionManager;
 
-    @GET
-    @Path("authorize")
-    public Response authorize(
-            @QueryParam("client_id") String clientId,
-            @QueryParam("redirect_uri") String redirectUri,
-            @QueryParam("state") String state,
-            @QueryParam("scope") String scope,
-            @QueryParam("response_type") String responseType,
-            @QueryParam("code_challenge") String codeChallenge,
-            @QueryParam("code_challenge_method") String codeChallengeMethod,
-            @QueryParam("nonce") String nonce) {
+    public ApiReply authorize(
+            String clientId,
+            String redirectUri,
+            String state,
+            String scope,
+            String responseType,
+            String codeChallenge,
+            String codeChallengeMethod,
+            String nonce) {
 
         ClientConfig client = getClients().get(clientId);
         if (client == null) {
-            throw new WebApplicationException(Response.Status.UNAUTHORIZED);
+            throw new ApiException(401);
         }
 
         URI target = URI.create(redirectUri);
         if (!client.redirectUris().contains(target)) {
-            throw new WebApplicationException(Response.Status.BAD_REQUEST);
+            throw new ApiException(400);
         }
 
         String code = sessionManager.issueCode(
                 getUserId(), clientId, target, scope, nonce, codeChallenge, codeChallengeMethod);
 
-        UriBuilder redirectBuilder = UriBuilder.fromUri(target).queryParam("code", code);
+        QueryParamBuilder redirectBuilder = new QueryParamBuilder(target).queryParam("code", code);
         if (state != null) {
             redirectBuilder.queryParam("state", state);
         }
 
-        return Response.seeOther(redirectBuilder.build()).build();
+        return ApiReply.seeOther(redirectBuilder.build());
     }
 
-    @PermitAll
-    @POST
-    @Path("token")
-    public Response token(
-            @FormParam("grant_type") String grantType,
-            @FormParam("code") String code,
-            @FormParam("redirect_uri") String redirectUri,
-            @FormParam("client_id") String clientId,
-            @FormParam("client_secret") String clientSecret,
-            @FormParam("code_verifier") String codeVerifier,
-            @HeaderParam("Authorization") String authorization)
+    public ApiReply token(
+            String grantType,
+            String code,
+            String redirectUri,
+            String clientId,
+            String clientSecret,
+            String codeVerifier,
+            String authorization)
             throws StorageException, IOException, GeneralSecurityException, JOSEException {
 
         if (authorization != null && authorization.startsWith("Basic ")) {
@@ -122,13 +105,13 @@ public class OidcResource extends BaseResource {
 
         ClientConfig client = getClients().get(clientId);
         if (client == null || !client.secret().equals(clientSecret)) {
-            throw new WebApplicationException(Response.Status.UNAUTHORIZED);
+            throw new ApiException(401);
         }
 
         AuthorizationCode authCode = sessionManager.consumeCode(
                 code, clientId, redirectUri != null ? URI.create(redirectUri) : null, codeVerifier);
         if (authCode == null) {
-            throw new WebApplicationException(Response.Status.BAD_REQUEST);
+            throw new ApiException(400);
         }
 
         String token = tokenManager.generateToken(authCode.userId());
@@ -144,11 +127,9 @@ public class OidcResource extends BaseResource {
         response.put("expires_in", expiresIn);
         response.put("id_token", idToken);
         response.put("scope", authCode.scope());
-        return Response.ok(response).build();
+        return ApiReply.ok(response);
     }
 
-    @GET
-    @Path("userinfo")
     public Map<String, Object> userInfo() throws StorageException {
         User user = permissionsService.getUser(getUserId());
         Map<String, Object> profile = new LinkedHashMap<>();
@@ -158,9 +139,6 @@ public class OidcResource extends BaseResource {
         return profile;
     }
 
-    @PermitAll
-    @GET
-    @Path("jwks")
     public Map<String, Object> jwks() throws GeneralSecurityException, StorageException, JOSEException {
         return sessionManager.getJwks();
     }
@@ -178,6 +156,19 @@ public class OidcResource extends BaseResource {
                     .collect(Collectors.toSet())));
         }
         return clients;
+    }
+
+    public static void routes(ApiResource<OidcResource> routes) {
+        routes.get("authorize", (resource, call) -> resource.authorize(
+                call.query("client_id"), call.query("redirect_uri"), call.query("state"), call.query("scope"),
+                call.query("response_type"), call.query("code_challenge"), call.query("code_challenge_method"),
+                call.query("nonce")));
+        routes.post("token", (resource, call) -> resource.token(
+                call.form("grant_type"), call.form("code"), call.form("redirect_uri"), call.form("client_id"),
+                call.form("client_secret"), call.form("code_verifier"), call.getHeader("Authorization")))
+                .permitAll();
+        routes.get("userinfo", (resource, call) -> resource.userInfo());
+        routes.get("jwks", (resource, call) -> resource.jwks()).permitAll();
     }
 
 }

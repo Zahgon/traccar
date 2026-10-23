@@ -15,10 +15,11 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonString;
-import jakarta.ws.rs.client.Client;
 
 public class GoogleGeocoder extends JsonGeocoder {
 
@@ -36,7 +37,8 @@ public class GoogleGeocoder extends JsonGeocoder {
     }
 
     public GoogleGeocoder(
-            Client client, String url, String key, String language, int cacheSize, AddressFormat addressFormat) {
+            HttpJsonClient client, String url, String key, String language, int cacheSize,
+            AddressFormat addressFormat) {
         super(client, formatUrl(url, key, language), cacheSize, addressFormat);
     }
 

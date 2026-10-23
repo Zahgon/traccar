@@ -51,8 +51,8 @@ import org.traccar.helper.SessionHelper;
 import org.traccar.helper.WebHelper;
 import org.traccar.model.User;
 import org.traccar.storage.StorageException;
+import org.traccar.web.WebRequest;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -150,7 +150,7 @@ public class OpenIdProvider {
         return userInfoResponse.toSuccessResponse().getUserInfo();
     }
 
-    public URI handleCallback(String queryParameters, HttpServletRequest request)
+    public URI handleCallback(String queryParameters, WebRequest request)
             throws StorageException, ParseException, IOException, GeneralSecurityException {
 
         String redirectUriOverride = request.getParameter("redirect_uri");

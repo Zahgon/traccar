@@ -17,21 +17,19 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.ExtendedObjectResource;
+import org.traccar.api.http.ApiResource;
 import org.traccar.model.Maintenance;
 
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 
-@Path("maintenance")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class MaintenanceResource extends ExtendedObjectResource<Maintenance> {
 
     public MaintenanceResource() {
         super(Maintenance.class, "name", List.of("name"));
+    }
+
+    public static void routes(ApiResource<MaintenanceResource> routes) {
+        listRoutes(routes);
     }
 
 }

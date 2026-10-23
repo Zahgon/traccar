@@ -15,8 +15,9 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 import java.util.Locale;
 
 public class HereGeocoder extends JsonGeocoder {
@@ -35,7 +36,7 @@ public class HereGeocoder extends JsonGeocoder {
     }
 
     public HereGeocoder(
-            Client client, String url, String key, String language,
+            HttpJsonClient client, String url, String key, String language,
             int cacheSize, AddressFormat addressFormat) {
         super(client, formatUrl(url, key, language), cacheSize, addressFormat);
     }

@@ -17,10 +17,10 @@
 package org.traccar.geocoder;
 
 import org.traccar.helper.CoordinateUtil;
+import org.traccar.helper.http.HttpJsonClient;
 
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 
 public class TencentGeocoder extends JsonGeocoder {
 
@@ -32,7 +32,7 @@ public class TencentGeocoder extends JsonGeocoder {
         return url;
     }
 
-    public TencentGeocoder(Client client, String key, int cacheSize, AddressFormat addressFormat) {
+    public TencentGeocoder(HttpJsonClient client, String key, int cacheSize, AddressFormat addressFormat) {
         super(client, formatUrl(key), cacheSize, addressFormat);
     }
 

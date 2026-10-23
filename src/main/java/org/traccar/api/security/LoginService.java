@@ -31,12 +31,12 @@ import org.traccar.storage.StorageException;
 import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
+import org.traccar.web.WebRequest;
+import org.traccar.web.WebSession;
 
 import jakarta.annotation.Nullable;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -73,9 +73,9 @@ public class LoginService {
         allowOpenIdRegistration = config.getBoolean(Keys.OPENID_ALLOW_REGISTRATION);
     }
 
-    public LoginResult login(HttpServletRequest request) throws StorageException {
+    public LoginResult login(WebRequest request) throws StorageException {
         if (SessionHelper.isSessionOriginValid(request)) {
-            HttpSession session = request.getSession(false);
+            WebSession session = request.getSession(false);
             Date expiration = (Date) session.getAttribute(SessionHelper.EXPIRATION_KEY);
             if (expiration != null && expiration.before(new Date())) {
                 session.invalidate();

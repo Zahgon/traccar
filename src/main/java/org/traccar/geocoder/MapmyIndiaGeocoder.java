@@ -15,13 +15,15 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 
 public class MapmyIndiaGeocoder extends JsonGeocoder {
 
-    public MapmyIndiaGeocoder(Client client, String url, String key, int cacheSize, AddressFormat addressFormat) {
+    public MapmyIndiaGeocoder(HttpJsonClient client, String url, String key, int cacheSize,
+            AddressFormat addressFormat) {
         super(client, url + "/" + key + "/rev_geocode?lat=%f&lng=%f", cacheSize, addressFormat);
     }
 

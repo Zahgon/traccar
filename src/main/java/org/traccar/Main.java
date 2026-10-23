@@ -23,7 +23,6 @@ import org.slf4j.LoggerFactory;
 import org.traccar.broadcast.BroadcastService;
 import org.traccar.schedule.ScheduleManager;
 import org.traccar.storage.DatabaseModule;
-import org.traccar.web.WebModule;
 import org.traccar.web.WebServer;
 
 import java.io.File;
@@ -113,7 +112,7 @@ public final class Main {
 
     public static void run(String configFile) {
         try {
-            injector = Guice.createInjector(new MainModule(configFile), new DatabaseModule(), new WebModule());
+            injector = Guice.createInjector(new MainModule(configFile), new DatabaseModule());
             logSystemInfo();
             LOGGER.info("Version: {}", Main.class.getPackage().getImplementationVersion());
             LOGGER.info("Starting server...");

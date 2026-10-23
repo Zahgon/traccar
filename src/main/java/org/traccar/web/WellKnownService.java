@@ -16,36 +16,55 @@
 package org.traccar.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.helidon.webserver.http.HttpRules;
+import io.helidon.webserver.http.HttpService;
+import io.helidon.webserver.http.ServerRequest;
+import io.helidon.webserver.http.ServerResponse;
 import org.traccar.api.security.OidcSessionManager;
 import org.traccar.config.Config;
 import org.traccar.helper.WebHelper;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.servlet.http.HttpServlet;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * The OpenID and OAuth discovery documents under /.well-known.
+ */
 @Singleton
-public class WellKnownServlet extends HttpServlet {
+public class WellKnownService implements HttpService {
+
+    public static final String PATH = "/.well-known";
+
+    private static final String ALLOW = "GET, HEAD, TRACE, OPTIONS";
 
     private final Config config;
     private final ObjectMapper objectMapper;
 
     @Inject
-    public WellKnownServlet(Config config, ObjectMapper objectMapper) {
+    public WellKnownService(Config config, ObjectMapper objectMapper) {
         this.config = config;
         this.objectMapper = objectMapper;
     }
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        String path = req.getPathInfo();
-        Map<String, Object> payload = switch (path) {
+    public void routing(HttpRules rules) {
+        rules.any(this::handle);
+    }
+
+    private void handle(ServerRequest request, ServerResponse response) throws IOException {
+        String path = request.path().absolute().path();
+        if (!path.startsWith(PATH + "/")) {
+            response.next();
+            return;
+        }
+        if (DefaultMethods.answer(request, response, ALLOW)) {
+            return;
+        }
+        Map<String, Object> payload = switch (path.substring(PATH.length())) {
             case "/openid-configuration", "/openid-configuration/api/oidc" -> openIdConfiguration();
             case "/oauth-authorization-server", "/oauth-authorization-server/api/oidc" ->
                     authorizationServerConfiguration();
@@ -53,11 +72,17 @@ public class WellKnownServlet extends HttpServlet {
                     protectedResourceConfiguration();
             default -> null;
         };
-        if (payload != null) {
-            resp.setContentType("application/json");
-            objectMapper.writeValue(resp.getWriter(), payload);
+        if (payload == null) {
+            ErrorPage.send(request, response, 404);
+            return;
+        }
+        byte[] body = objectMapper.writeValueAsBytes(payload);
+        response.header("Content-Type", "application/json");
+        if (request.prologue().method().text().equals("HEAD")) {
+            response.contentLength(body.length);
+            response.send();
         } else {
-            resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+            response.send(body);
         }
     }
 

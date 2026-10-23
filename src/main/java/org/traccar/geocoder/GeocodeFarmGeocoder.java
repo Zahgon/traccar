@@ -15,8 +15,9 @@
  */
 package org.traccar.geocoder;
 
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
 
 public class GeocodeFarmGeocoder extends JsonGeocoder {
 
@@ -32,7 +33,7 @@ public class GeocodeFarmGeocoder extends JsonGeocoder {
     }
 
     public GeocodeFarmGeocoder(
-            Client client, String key, String language, int cacheSize, AddressFormat addressFormat) {
+            HttpJsonClient client, String key, String language, int cacheSize, AddressFormat addressFormat) {
         super(client, formatUrl(key, language), cacheSize, addressFormat);
     }
 

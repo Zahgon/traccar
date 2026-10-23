@@ -15,15 +15,14 @@
  */
 package org.traccar.helper;
 
-import org.eclipse.jetty.util.URIUtil;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpCall;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpReply;
+import org.traccar.web.WebRequest;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.client.Invocation;
-import jakarta.ws.rs.client.InvocationCallback;
-import jakarta.ws.rs.core.Response;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
@@ -36,7 +35,7 @@ public final class WebHelper {
 
     private WebHelper() {}
 
-    public static String retrieveRemoteAddress(HttpServletRequest request) {
+    public static String retrieveRemoteAddress(WebRequest request) {
         if (request != null) {
             for (String proxyHeader : PROXY_HEADERS) {
                 String originalAddress = request.getHeader(proxyHeader);
@@ -61,16 +60,18 @@ public final class WebHelper {
             } catch (UnknownHostException e) {
                 address = "localhost";
             }
-            return URIUtil.newURI("http", address, config.getInteger(Keys.WEB_PORT));
+            int port = config.getInteger(Keys.WEB_PORT);
+            String host = address.contains(":") && !address.startsWith("[") ? "[" + address + "]" : address;
+            return port == 80 ? "http://" + host : "http://" + host + ":" + port;
         }
     }
 
     public static CompletableFuture<Void> post(
-            Invocation.Builder request, Entity<?> entity, Consumer<Response> handler) {
+            HttpCall request, HttpBody entity, Consumer<HttpReply> handler) {
         var future = new CompletableFuture<Void>();
-        request.async().post(entity, new InvocationCallback<Response>() {
+        request.async().post(entity, new HttpCallback<HttpReply>() {
             @Override
-            public void completed(Response response) {
+            public void completed(HttpReply response) {
                 try (response) {
                     handler.accept(response);
                     future.complete(null);

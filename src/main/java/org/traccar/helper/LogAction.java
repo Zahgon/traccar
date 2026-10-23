@@ -27,9 +27,9 @@ import org.traccar.storage.Storage;
 import org.traccar.storage.StorageException;
 import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Request;
+import org.traccar.web.WebRequest;
 
 import jakarta.inject.Inject;
-import jakarta.servlet.http.HttpServletRequest;
 import java.beans.Introspector;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -65,37 +65,37 @@ public final class LogAction {
     private static final String ACTION_COMMAND = "command";
     private static final String ACTION_REPORT = "report";
 
-    public void create(HttpServletRequest request, long userId, BaseModel object) {
+    public void create(WebRequest request, long userId, BaseModel object) {
         logObjectAction(request, ACTION_CREATE, userId, object.getClass(), object.getId());
     }
 
-    public void edit(HttpServletRequest request, long userId, BaseModel object) {
+    public void edit(WebRequest request, long userId, BaseModel object) {
         logObjectAction(request, ACTION_EDIT, userId, object.getClass(), object.getId());
     }
 
-    public void remove(HttpServletRequest request, long userId, Class<?> clazz, long objectId) {
+    public void remove(WebRequest request, long userId, Class<?> clazz, long objectId) {
         logObjectAction(request, ACTION_REMOVE, userId, clazz, objectId);
     }
 
     public void link(
-            HttpServletRequest request, long userId, Class<?> owner, long ownerId, Class<?> property, long propertyId) {
+            WebRequest request, long userId, Class<?> owner, long ownerId, Class<?> property, long propertyId) {
         logLinkAction(request, ACTION_LINK, userId, owner, ownerId, property, propertyId);
     }
 
     public void unlink(
-            HttpServletRequest request, long userId, Class<?> owner, long ownerId, Class<?> property, long propertyId) {
+            WebRequest request, long userId, Class<?> owner, long ownerId, Class<?> property, long propertyId) {
         logLinkAction(request, ACTION_UNLINK, userId, owner, ownerId, property, propertyId);
     }
 
-    public void login(HttpServletRequest request, long userId) {
+    public void login(WebRequest request, long userId) {
         logLoginAction(request, ACTION_LOGIN, userId);
     }
 
-    public void logout(HttpServletRequest request, long userId) {
+    public void logout(WebRequest request, long userId) {
         logLoginAction(request, ACTION_LOGOUT, userId);
     }
 
-    public void token(HttpServletRequest request, long userId, long tokenId) {
+    public void token(WebRequest request, long userId, long tokenId) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
         action.setUserId(userId);
@@ -105,7 +105,7 @@ public final class LogAction {
         storeAction(action);
     }
 
-    public void failedLogin(HttpServletRequest request) {
+    public void failedLogin(WebRequest request) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
         action.setActionType(ACTION_DENIED);
@@ -116,7 +116,7 @@ public final class LogAction {
                 StringUtils.isEmpty(action.getAddress()) ? "unknown" : action.getAddress()));
     }
 
-    public void resetAccumulators(HttpServletRequest request, long userId, long deviceId) {
+    public void resetAccumulators(WebRequest request, long userId, long deviceId) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
         action.setUserId(userId);
@@ -126,7 +126,7 @@ public final class LogAction {
         storeAction(action);
     }
 
-    public void command(HttpServletRequest request, long userId, long groupId, long deviceId, String type) {
+    public void command(WebRequest request, long userId, long groupId, long deviceId, String type) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
         action.setUserId(userId);
@@ -142,7 +142,7 @@ public final class LogAction {
     }
 
     public void report(
-            HttpServletRequest request, long userId, boolean scheduled, String report,
+            WebRequest request, long userId, boolean scheduled, String report,
             Date from, Date to, List<Long> deviceIds, List<Long> groupIds) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
@@ -158,7 +158,7 @@ public final class LogAction {
     }
 
     private void logObjectAction(
-            HttpServletRequest request, String actionType, long userId, Class<?> clazz, long objectId) {
+            WebRequest request, String actionType, long userId, Class<?> clazz, long objectId) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
         action.setUserId(userId);
@@ -169,7 +169,7 @@ public final class LogAction {
     }
 
     private void logLinkAction(
-            HttpServletRequest request, String actionType,
+            WebRequest request, String actionType,
             long userId, Class<?> owner, long ownerId, Class<?> property, long propertyId) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
@@ -183,7 +183,7 @@ public final class LogAction {
     }
 
     private void logLoginAction(
-            HttpServletRequest request, String actionType, long userId) {
+            WebRequest request, String actionType, long userId) {
         Action action = new Action();
         action.setAddress(WebHelper.retrieveRemoteAddress(request));
         action.setUserId(userId);

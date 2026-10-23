@@ -20,12 +20,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.Checksum;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
+import org.traccar.helper.http.HttpReply;
 import org.traccar.model.Device;
 import org.traccar.model.Position;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.InvocationCallback;
-import jakarta.ws.rs.core.Response;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -40,10 +40,10 @@ public class PositionForwarderUrl implements PositionForwarder {
     private final String url;
     private final String header;
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final ObjectMapper objectMapper;
 
-    public PositionForwarderUrl(Config config, Client client, ObjectMapper objectMapper) {
+    public PositionForwarderUrl(Config config, HttpJsonClient client, ObjectMapper objectMapper) {
         this.client = client;
         this.objectMapper = objectMapper;
         this.url = config.getString(Keys.FORWARD_URL);
@@ -66,13 +66,13 @@ public class PositionForwarderUrl implements PositionForwarder {
             }
 
             var future = new CompletableFuture<Void>();
-            requestBuilder.async().get(new InvocationCallback<Response>() {
+            requestBuilder.async().get(new HttpCallback<HttpReply>() {
                 @Override
-                public void completed(Response response) {
-                    if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
+                public void completed(HttpReply response) {
+                    if (response.isSuccessful()) {
                         future.complete(null);
                     } else {
-                        int code = response.getStatusInfo().getStatusCode();
+                        int code = response.getStatus();
                         future.completeExceptionally(new RuntimeException("HTTP code " + code));
                     }
                 }

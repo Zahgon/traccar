@@ -19,19 +19,19 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.CellTower;
 import org.traccar.model.Network;
 import org.traccar.model.WifiAccessPoint;
 
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.client.InvocationCallback;
 import java.util.Collection;
 
 public class UnwiredGeolocationProvider implements GeolocationProvider {
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final String url;
     private final String key;
 
@@ -85,7 +85,7 @@ public class UnwiredGeolocationProvider implements GeolocationProvider {
         abstract Integer getSignalStrength();
     }
 
-    public UnwiredGeolocationProvider(Client client, String url, String key) {
+    public UnwiredGeolocationProvider(HttpJsonClient client, String url, String key) {
         this.client = client;
         this.url = url;
         this.key = key;
@@ -101,7 +101,7 @@ public class UnwiredGeolocationProvider implements GeolocationProvider {
         ObjectNode json = objectMapper.valueToTree(network);
         json.put("token", key);
 
-        client.target(url).request().async().post(Entity.json(json), new InvocationCallback<JsonObject>() {
+        client.target(url).request().async().post(HttpBody.json(json), new HttpCallback<JsonObject>() {
             @Override
             public void completed(JsonObject json) {
                 if (json.getString("status").equals("error")) {

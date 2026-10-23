@@ -15,26 +15,26 @@
  */
 package org.traccar.geolocation;
 
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.Network;
 
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.client.InvocationCallback;
 
 public class UniversalGeolocationProvider implements GeolocationProvider {
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final String url;
 
-    public UniversalGeolocationProvider(Client client, String url, String key) {
+    public UniversalGeolocationProvider(HttpJsonClient client, String url, String key) {
         this.client = client;
         this.url = url + "?key=" + key;
     }
 
     @Override
     public void getLocation(Network network, final LocationProviderCallback callback) {
-        client.target(url).request().async().post(Entity.json(network), new InvocationCallback<JsonObject>() {
+        client.target(url).request().async().post(HttpBody.json(network), new HttpCallback<JsonObject>() {
             @Override
             public void completed(JsonObject json) {
                 if (json.containsKey("error")) {

@@ -17,6 +17,8 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.ExtendedObjectResource;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.handler.ComputedAttributesProvider;
 import org.traccar.model.Attribute;
 import org.traccar.model.Device;
@@ -27,21 +29,8 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PUT;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.util.List;
 
-@Path("attributes/computed")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class AttributeResource extends ExtendedObjectResource<Attribute> {
 
     @Inject
@@ -54,9 +43,7 @@ public class AttributeResource extends ExtendedObjectResource<Attribute> {
         super(Attribute.class, "description", List.of("description"));
     }
 
-    @POST
-    @Path("test")
-    public Response test(@QueryParam("deviceId") long deviceId, Attribute entity) throws Exception {
+    public ApiReply test(long deviceId, Attribute entity) throws Exception {
         permissionsService.checkAdmin(getUserId());
         permissionsService.checkPermission(Device.class, getUserId(), deviceId);
 
@@ -70,35 +57,35 @@ public class AttributeResource extends ExtendedObjectResource<Attribute> {
             Object result = computedAttributesProvider.compute(entity, position);
             if (result != null) {
                 return switch (entity.getType()) {
-                    case "number", "boolean" -> Response.ok(result).build();
-                    default -> Response.ok(result.toString()).build();
+                    case "number", "boolean" -> ApiReply.ok(result);
+                    default -> ApiReply.ok(result.toString());
                 };
             } else {
-                return Response.noContent().build();
+                return ApiReply.noContent();
             }
         } finally {
             cacheManager.removeDevice(position.getDeviceId(), key);
         }
     }
 
-    @POST
-    public Response add(Attribute entity) throws Exception {
+    public ApiReply add(Attribute entity) throws Exception {
         permissionsService.checkAdmin(getUserId());
         return super.add(entity);
     }
 
-    @Path("{id}")
-    @PUT
-    public Response update(Attribute entity) throws Exception {
+    public ApiReply update(Attribute entity) throws Exception {
         permissionsService.checkAdmin(getUserId());
         return super.update(entity);
     }
 
-    @Path("{id}")
-    @DELETE
-    public Response remove(@PathParam("id") long id) throws Exception {
+    public ApiReply remove(long id) throws Exception {
         permissionsService.checkAdmin(getUserId());
         return super.remove(id);
+    }
+
+    public static void routes(ApiResource<AttributeResource> routes) {
+        listRoutes(routes);
+        routes.post("test", (resource, call) -> resource.test(call.queryLong("deviceId"), call.json(Attribute.class)));
     }
 
 }

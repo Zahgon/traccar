@@ -19,15 +19,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
+import org.traccar.helper.http.HttpReply;
 import org.traccar.helper.model.AttributeUtil;
 import org.traccar.session.cache.CacheManager;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.client.InvocationCallback;
-import jakarta.ws.rs.core.HttpHeaders;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 
 public class PositionForwarderJson implements PositionForwarder {
@@ -35,11 +33,12 @@ public class PositionForwarderJson implements PositionForwarder {
     private final String url;
     private final String header;
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final ObjectMapper objectMapper;
     private final CacheManager cacheManager;
 
-    public PositionForwarderJson(Config config, Client client, ObjectMapper objectMapper, CacheManager cacheManager) {
+    public PositionForwarderJson(Config config, HttpJsonClient client, ObjectMapper objectMapper,
+            CacheManager cacheManager) {
         this.client = client;
         this.objectMapper = objectMapper;
         this.cacheManager = cacheManager;
@@ -56,14 +55,14 @@ public class PositionForwarderJson implements PositionForwarder {
 
         var requestBuilder = client.target(url).request();
 
-        MediaType mediaType = MediaType.APPLICATION_JSON_TYPE;
+        String mediaType = HttpBody.JSON;
         if (url.equals(this.url) && header != null && !header.isEmpty()) {
             for (String line: header.split("\\r?\\n")) {
                 String[] values = line.split(":", 2);
                 String headerName = values[0].trim();
                 String headerValue = values[1].trim();
-                if (headerName.equals(HttpHeaders.CONTENT_TYPE)) {
-                    mediaType = MediaType.valueOf(headerValue);
+                if (headerName.equals("Content-Type")) {
+                    mediaType = headerValue;
                 } else {
                     requestBuilder.header(headerName, headerValue);
                 }
@@ -71,15 +70,15 @@ public class PositionForwarderJson implements PositionForwarder {
         }
 
         try {
-            var entity = Entity.entity(objectMapper.writeValueAsString(positionData), mediaType);
+            var entity = HttpBody.text(objectMapper.writeValueAsString(positionData), mediaType);
             var future = new CompletableFuture<Void>();
-            requestBuilder.async().post(entity, new InvocationCallback<Response>() {
+            requestBuilder.async().post(entity, new HttpCallback<HttpReply>() {
                 @Override
-                public void completed(Response response) {
-                    if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
+                public void completed(HttpReply response) {
+                    if (response.isSuccessful()) {
                         future.complete(null);
                     } else {
-                        int code = response.getStatusInfo().getStatusCode();
+                        int code = response.getStatus();
                         future.completeExceptionally(new RuntimeException("HTTP code " + code));
                     }
                 }

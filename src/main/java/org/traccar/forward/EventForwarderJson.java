@@ -17,11 +17,11 @@ package org.traccar.forward;
 
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
+import org.traccar.helper.http.HttpReply;
 
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.client.InvocationCallback;
-import jakarta.ws.rs.core.Response;
 import java.util.concurrent.CompletableFuture;
 
 public class EventForwarderJson implements EventForwarder {
@@ -29,9 +29,9 @@ public class EventForwarderJson implements EventForwarder {
     private final String url;
     private final String header;
 
-    private final Client client;
+    private final HttpJsonClient client;
 
-    public EventForwarderJson(Config config, Client client) {
+    public EventForwarderJson(Config config, HttpJsonClient client) {
         this.client = client;
         url = config.getString(Keys.EVENT_FORWARD_URL);
         header = config.getString(Keys.EVENT_FORWARD_HEADERS);
@@ -49,13 +49,13 @@ public class EventForwarderJson implements EventForwarder {
         }
 
         var future = new CompletableFuture<Void>();
-        requestBuilder.async().post(Entity.json(eventData), new InvocationCallback<Response>() {
+        requestBuilder.async().post(HttpBody.json(eventData), new HttpCallback<HttpReply>() {
             @Override
-            public void completed(Response response) {
-                if (response.getStatusInfo().getFamily() == Response.Status.Family.SUCCESSFUL) {
+            public void completed(HttpReply response) {
+                if (response.isSuccessful()) {
                     future.complete(null);
                 } else {
-                    int code = response.getStatusInfo().getStatusCode();
+                    int code = response.getStatus();
                     future.completeExceptionally(new RuntimeException("HTTP code " + code));
                 }
             }

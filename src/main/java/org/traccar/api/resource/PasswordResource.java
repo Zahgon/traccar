@@ -16,6 +16,8 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.api.signature.TokenManager;
 import org.traccar.mail.MailManager;
 import org.traccar.model.User;
@@ -25,23 +27,12 @@ import org.traccar.storage.query.Columns;
 import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
-import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
-@Path("password")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_FORM_URLENCODED)
 public class PasswordResource extends BaseResource {
 
     @Inject
@@ -53,10 +44,7 @@ public class PasswordResource extends BaseResource {
     @Inject
     private TextTemplateFormatter textTemplateFormatter;
 
-    @Path("reset")
-    @PermitAll
-    @POST
-    public Response reset(@FormParam("email") String email)
+    public ApiReply reset(String email)
             throws StorageException, ExecutionException, InterruptedException, GeneralSecurityException, IOException {
 
         User user = storage.getObject(User.class, new Request(
@@ -66,14 +54,11 @@ public class PasswordResource extends BaseResource {
             var fullMessage = textTemplateFormatter.formatMessage(velocityContext, "passwordReset", false);
             mailManager.sendMessage(user, true, fullMessage.subject(), fullMessage.body()).get();
         }
-        return Response.ok().build();
+        return ApiReply.ok();
     }
 
-    @Path("update")
-    @PermitAll
-    @POST
-    public Response update(
-            @FormParam("token") String token, @FormParam("password") String password)
+    public ApiReply update(
+            String token, String password)
             throws StorageException, GeneralSecurityException, IOException {
 
         long userId = tokenManager.verifyToken(token).getUserId();
@@ -84,9 +69,15 @@ public class PasswordResource extends BaseResource {
             storage.updateObject(user, new Request(
                     new Columns.Include("hashedPassword", "salt"),
                     new Condition.Equals("id", userId)));
-            return Response.ok().build();
+            return ApiReply.ok();
         }
-        return Response.status(Response.Status.NOT_FOUND).build();
+        return ApiReply.status(404);
+    }
+
+    public static void routes(ApiResource<PasswordResource> routes) {
+        routes.post("reset", (resource, call) -> resource.reset(call.form("email"))).permitAll();
+        routes.post("update", (resource, call) -> resource.update(
+                call.form("token"), call.form("password"))).permitAll();
     }
 
 }

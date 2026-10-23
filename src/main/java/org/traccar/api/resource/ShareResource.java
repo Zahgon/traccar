@@ -16,6 +16,8 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiException;
+import org.traccar.api.http.ApiResource;
 import org.traccar.api.signature.TokenManager;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
@@ -30,22 +32,11 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
 import jakarta.inject.Inject;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.FormParam;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.WebApplicationException;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Date;
 import java.util.Locale;
 
-@Path("share")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class ShareResource extends BaseResource {
 
     @Inject
@@ -97,28 +88,29 @@ public class ShareResource extends BaseResource {
 
             storage.addPermission(new Permission(User.class, share.getId(), clazz, id));
         } else {
-            throw new WebApplicationException(Response.Status.CONFLICT);
+            throw new ApiException(409);
         }
 
         return tokenManager.generateToken(share.getId(), expiration);
     }
 
-    @Path("device")
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @POST
     public String shareDevice(
-            @FormParam("deviceId") long deviceId,
-            @FormParam("expiration") Date expiration) throws StorageException, GeneralSecurityException, IOException {
+            long deviceId,
+            Date expiration) throws StorageException, GeneralSecurityException, IOException {
         return share(permissionsService.getUser(getUserId()), Device.class, deviceId, expiration);
     }
 
-    @Path("group")
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @POST
     public String shareGroup(
-            @FormParam("groupId") long groupId,
-            @FormParam("expiration") Date expiration) throws StorageException, GeneralSecurityException, IOException {
+            long groupId,
+            Date expiration) throws StorageException, GeneralSecurityException, IOException {
         return share(permissionsService.getUser(getUserId()), Group.class, groupId, expiration);
+    }
+
+    public static void routes(ApiResource<ShareResource> routes) {
+        routes.post("device", (resource, call) -> resource.shareDevice(
+                call.formLong("deviceId"), call.formDate("expiration"))).consumes(ApiResource.FORM);
+        routes.post("group", (resource, call) -> resource.shareGroup(
+                call.formLong("groupId"), call.formDate("expiration"))).consumes(ApiResource.FORM);
     }
 
 }

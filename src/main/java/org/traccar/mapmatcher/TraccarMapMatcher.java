@@ -15,17 +15,18 @@
  */
 package org.traccar.mapmatcher;
 
+import org.traccar.helper.http.HttpCallback;
+import org.traccar.helper.http.HttpJsonClient;
+
 import jakarta.json.JsonObject;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.InvocationCallback;
 
 public class TraccarMapMatcher implements MapMatcher {
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final String url;
     private final String key;
 
-    public TraccarMapMatcher(Client client, String url, String key) {
+    public TraccarMapMatcher(HttpJsonClient client, String url, String key) {
         this.client = client;
         this.url = url != null ? url : "https://geocoder.traccar.org/snap";
         this.key = key;
@@ -42,7 +43,7 @@ public class TraccarMapMatcher implements MapMatcher {
                 .queryParam("key", key)
                 .request();
 
-        request.async().get(new InvocationCallback<JsonObject>() {
+        request.async().get(new HttpCallback<JsonObject>() {
             @Override
             public void completed(JsonObject json) {
                 if (json.containsKey("lat") && json.containsKey("lon")) {

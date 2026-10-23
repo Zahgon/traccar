@@ -16,6 +16,8 @@
 package org.traccar.api.resource;
 
 import org.traccar.api.BaseResource;
+import org.traccar.api.http.ApiReply;
+import org.traccar.api.http.ApiResource;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.database.OpenIdProvider;
@@ -35,20 +37,7 @@ import org.traccar.storage.query.Condition;
 import org.traccar.storage.query.Request;
 
 import jakarta.annotation.Nullable;
-import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.Consumes;
-import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.PUT;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
-import jakarta.ws.rs.core.Context;
-import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -59,9 +48,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.TimeZone;
 
-@Path("server")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
 public class ServerResource extends BaseResource {
 
     @Inject
@@ -88,11 +74,6 @@ public class ServerResource extends BaseResource {
     @Inject
     private LogAction actionLogger;
 
-    @Context
-    private HttpServletRequest request;
-
-    @PermitAll
-    @GET
     public Server get() throws StorageException {
         Server server = storage.getObject(Server.class, new Request(new Columns.All()));
         server.setEmailEnabled(mailManager.getEmailEnabled());
@@ -111,20 +92,17 @@ public class ServerResource extends BaseResource {
         return server;
     }
 
-    @PUT
-    public Response update(Server server) throws Exception {
+    public ApiReply update(Server server) throws Exception {
         permissionsService.checkAdmin(getUserId());
         storage.updateObject(server, new Request(
                 new Columns.Exclude("id"),
                 new Condition.Equals("id", server.getId())));
         cacheManager.invalidateObject(true, Server.class, server.getId(), ObjectOperation.UPDATE);
         actionLogger.edit(request, getUserId(), server);
-        return Response.ok(server).build();
+        return ApiReply.ok(server);
     }
 
-    @Path("geocode")
-    @GET
-    public String geocode(@QueryParam("latitude") double latitude, @QueryParam("longitude") double longitude) {
+    public String geocode(double latitude, double longitude) {
         if (geocoder != null) {
             return geocoder.getAddress(latitude, longitude, null);
         } else {
@@ -132,23 +110,18 @@ public class ServerResource extends BaseResource {
         }
     }
 
-    @Path("timezones")
-    @GET
     public Collection<String> timezones() {
         return List.of(TimeZone.getAvailableIDs());
     }
 
-    @Path("file/{path}")
-    @POST
-    @Consumes("*/*")
-    public Response uploadFile(@PathParam("path") String path, File inputFile) throws IOException, StorageException {
+    public ApiReply uploadFile(String path, File inputFile) throws IOException, StorageException {
         permissionsService.checkAdmin(getUserId());
         String root = config.getString(Keys.WEB_OVERRIDE, config.getString(Keys.WEB_PATH));
 
         var rootPath = Paths.get(root).normalize();
         var outputPath = rootPath.resolve(path).normalize();
         if (!outputPath.startsWith(rootPath)) {
-            return Response.status(Response.Status.BAD_REQUEST).build();
+            return ApiReply.status(400);
         }
 
         var directoryPath = outputPath.getParent();
@@ -159,29 +132,39 @@ public class ServerResource extends BaseResource {
         try (var input = new FileInputStream(inputFile); var output = new FileOutputStream(outputPath.toFile())) {
             input.transferTo(output);
         }
-        return Response.ok().build();
+        return ApiReply.ok();
     }
 
-    @Path("gc")
-    @GET
-    public Response gc() throws StorageException {
+    public ApiReply gc() throws StorageException {
         permissionsService.checkAdmin(getUserId());
         System.gc();
-        return Response.ok().build();
+        return ApiReply.ok();
     }
 
-    @Path("cache")
-    @GET
     public String cache() throws StorageException {
         permissionsService.checkAdmin(getUserId());
         return cacheManager.toString();
     }
 
-    @Path("reboot")
-    @POST
     public void reboot() throws StorageException {
         permissionsService.checkAdmin(getUserId());
         System.exit(130);
+    }
+
+    public static void routes(ApiResource<ServerResource> routes) {
+        routes.get("", (resource, call) -> resource.get()).permitAll();
+        routes.put("", (resource, call) -> resource.update(call.json(Server.class)));
+        routes.get("geocode", (resource, call) -> resource.geocode(
+                call.queryDouble("latitude"), call.queryDouble("longitude")));
+        routes.get("timezones", (resource, call) -> resource.timezones());
+        routes.post("file/{path}", (resource, call) -> resource.uploadFile(call.path("path"), call.file()))
+                .consumes(ApiResource.ANY);
+        routes.get("gc", (resource, call) -> resource.gc());
+        routes.get("cache", (resource, call) -> resource.cache());
+        routes.post("reboot", (resource, call) -> {
+            resource.reboot();
+            return null;
+        });
     }
 
 }

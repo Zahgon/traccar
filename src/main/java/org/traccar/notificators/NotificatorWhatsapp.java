@@ -19,6 +19,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.WebHelper;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.Event;
 import org.traccar.model.Position;
 import org.traccar.model.User;
@@ -28,15 +30,13 @@ import org.traccar.notification.NotificationMessage;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @Singleton
 public class NotificatorWhatsapp extends Notificator {
 
-    private final Client client;
+    private final HttpJsonClient client;
     private final String token;
     private final String phoneNumberId;
     private final String templateName;
@@ -82,7 +82,7 @@ public class NotificatorWhatsapp extends Notificator {
     }
 
     @Inject
-    public NotificatorWhatsapp(Config config, NotificationFormatter notificationFormatter, Client client) {
+    public NotificatorWhatsapp(Config config, NotificationFormatter notificationFormatter, HttpJsonClient client) {
         super(notificationFormatter);
         this.client = client;
         token = config.getString(Keys.NOTIFICATOR_WHATSAPP_TOKEN);
@@ -116,7 +116,7 @@ public class NotificatorWhatsapp extends Notificator {
 
         var request = client.target(String.format("https://graph.facebook.com/v22.0/%s/messages", phoneNumberId))
                 .request().header("Authorization", "Bearer " + token);
-        return WebHelper.post(request, Entity.json(message), response -> {
+        return WebHelper.post(request, HttpBody.json(message), response -> {
             if (response.getStatus() / 100 != 2) {
                 throw new MessageException(response.readEntity(String.class));
             }

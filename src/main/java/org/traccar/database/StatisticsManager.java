@@ -23,6 +23,8 @@ import org.traccar.api.security.ServiceAccountUser;
 import org.traccar.config.Config;
 import org.traccar.config.Keys;
 import org.traccar.helper.DateUtil;
+import org.traccar.helper.http.HttpBody;
+import org.traccar.helper.http.HttpJsonClient;
 import org.traccar.model.Statistics;
 import org.traccar.storage.Storage;
 import org.traccar.storage.StorageException;
@@ -31,13 +33,11 @@ import org.traccar.storage.query.Request;
 
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
-import jakarta.ws.rs.client.Client;
-import jakarta.ws.rs.client.Entity;
-import jakarta.ws.rs.core.Form;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,7 +51,7 @@ public class StatisticsManager {
 
     private final Config config;
     private final Storage storage;
-    private final Client client;
+    private final HttpJsonClient client;
     private final ObjectMapper objectMapper;
 
     private final AtomicInteger lastUpdate = new AtomicInteger(Calendar.getInstance().get(SPLIT_MODE));
@@ -69,7 +69,7 @@ public class StatisticsManager {
     private int geolocationRequests;
 
     @Inject
-    public StatisticsManager(Config config, Storage storage, Client client, ObjectMapper objectMapper) {
+    public StatisticsManager(Config config, Storage storage, HttpJsonClient client, ObjectMapper objectMapper) {
         this.config = config;
         this.storage = storage;
         this.client = client;
@@ -122,34 +122,34 @@ public class StatisticsManager {
             if (url != null && !url.isEmpty()) {
                 String time = DateUtil.formatDate(statistics.getCaptureTime());
 
-                Form form = new Form();
-                form.param("version", getClass().getPackage().getImplementationVersion());
-                form.param("captureTime", time);
-                form.param("activeUsers", String.valueOf(statistics.getActiveUsers()));
-                form.param("activeDevices", String.valueOf(statistics.getActiveDevices()));
-                form.param("requests", String.valueOf(statistics.getRequests()));
-                form.param("messagesReceived", String.valueOf(statistics.getMessagesReceived()));
-                form.param("messagesStored", String.valueOf(statistics.getMessagesStored()));
-                form.param("mailSent", String.valueOf(statistics.getMailSent()));
-                form.param("smsSent", String.valueOf(statistics.getSmsSent()));
-                form.param("geocoderRequests", String.valueOf(statistics.getGeocoderRequests()));
-                form.param("geolocationRequests", String.valueOf(statistics.getGeolocationRequests()));
+                Map<String, String> form = new LinkedHashMap<>();
+                form.put("version", getClass().getPackage().getImplementationVersion());
+                form.put("captureTime", time);
+                form.put("activeUsers", String.valueOf(statistics.getActiveUsers()));
+                form.put("activeDevices", String.valueOf(statistics.getActiveDevices()));
+                form.put("requests", String.valueOf(statistics.getRequests()));
+                form.put("messagesReceived", String.valueOf(statistics.getMessagesReceived()));
+                form.put("messagesStored", String.valueOf(statistics.getMessagesStored()));
+                form.put("mailSent", String.valueOf(statistics.getMailSent()));
+                form.put("smsSent", String.valueOf(statistics.getSmsSent()));
+                form.put("geocoderRequests", String.valueOf(statistics.getGeocoderRequests()));
+                form.put("geolocationRequests", String.valueOf(statistics.getGeolocationRequests()));
                 if (statistics.getProtocols() != null) {
                     try {
-                        form.param("protocols", objectMapper.writeValueAsString(statistics.getProtocols()));
+                        form.put("protocols", objectMapper.writeValueAsString(statistics.getProtocols()));
                     } catch (JsonProcessingException e) {
                         LOGGER.warn("Failed to serialize protocols", e);
                     }
                 }
                 if (!statistics.getAttributes().isEmpty()) {
                     try {
-                        form.param("attributes", objectMapper.writeValueAsString(statistics.getAttributes()));
+                        form.put("attributes", objectMapper.writeValueAsString(statistics.getAttributes()));
                     } catch (JsonProcessingException e) {
                         LOGGER.warn("Failed to serialize attributes", e);
                     }
                 }
 
-                client.target(url).request().async().post(Entity.form(form));
+                client.target(url).request().async().post(HttpBody.form(form));
             }
         }
     }

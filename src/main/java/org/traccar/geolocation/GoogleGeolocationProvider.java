@@ -15,13 +15,13 @@
  */
 package org.traccar.geolocation;
 
-import jakarta.ws.rs.client.Client;
+import org.traccar.helper.http.HttpJsonClient;
 
 public class GoogleGeolocationProvider extends UniversalGeolocationProvider {
 
     private static final String URL = "https://www.googleapis.com/geolocation/v1/geolocate";
 
-    public GoogleGeolocationProvider(Client client, String key) {
+    public GoogleGeolocationProvider(HttpJsonClient client, String key) {
         super(client, URL, key);
     }
 
